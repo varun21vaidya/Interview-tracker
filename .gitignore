@@ -39,3 +39,15 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# planning docs (local only)
+prompt.md
+system_prompt.md
+spec_plan.md
+initial_plan.md
+architecture.md
+tip.md
+interview-tracker-part2-schema-and-core-code.md
+Phased plan and device checklist.md
+Interview Tracker Feature-by-Feature Build Prompts.md
+Interview Tracker – App Screens.pdf
