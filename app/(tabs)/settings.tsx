@@ -72,6 +72,7 @@ function CalendarsCard() {
       const a = await requestCalendarAccess();
       setAccess(a);
       if (a === 'granted') await loadRows();
+      else setError(a === 'ask' ? 'Access was not granted. Press the button to try again.' : 'Access is blocked. Turn it on in app settings.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not ask for calendar access');
     }

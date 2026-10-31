@@ -17,6 +17,11 @@ type State =
   | { kind: 'ready'; events: CalEvent[]; cached: number };
 
 export default function DebugEvents() {
+  if (!__DEV__) return null; // never expose calendar contents in a release build
+  return <DebugEventsScreen />;
+}
+
+function DebugEventsScreen() {
   const [state, setState] = useState<State>({ kind: 'idle' });
 
   async function load() {
