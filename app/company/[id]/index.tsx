@@ -113,11 +113,15 @@ function BackLink({ onPress }: { onPress: () => void }) {
 }
 
 function RoundsCard({ model }: { model: CompanyDetailModel }) {
+  const router = useRouter();
   return (
     <Card style={styles.card}>
       <Text style={styles.cardTitle}>Rounds</Text>
       {model.rows.map(row => (
         <RoundRow key={row.round.id} row={row}>
+          {row.round.source === 'manual' && (
+            <Button label="Edit" variant="secondary" onPress={() => router.push({ pathname: '/add', params: { roundId: row.round.id } })} />
+          )}
           {row.actions && (
             <View style={styles.actions}>
               <View style={styles.pair}>
