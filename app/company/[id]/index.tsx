@@ -11,15 +11,11 @@ import { StatTile } from '../../../src/components/StatTile';
 import { markPinged, notMovingForward, reopenCompany, saveNotes, setResult } from '../../../src/db/repos/actions';
 import { firstName, telUri } from '../../../src/domain/contact';
 import { agoText, modeLabel, type CompanyDetailModel } from '../../../src/domain/detail';
+import { defaultTemplate } from '../../../src/domain/email';
 import { shortDate } from '../../../src/domain/status';
 import { useCompany } from '../../../src/hooks/useCompany';
 import { colors, MIN_TOUCH, radius, space, type } from '../../../src/theme/tokens';
 import type { Bundle } from '../../../src/types/entities';
-
-type Template = 'follow_up' | 'check_fit';
-
-// Email screen (3.6) is out of scope for this phase: stubbed. The template says which text it will open with.
-const openEmail = (_companyId: string, _template: Template) => {};
 
 const pingDateText = (pings: number[]) => pings.map(shortDate).join(', ');
 
@@ -78,7 +74,7 @@ export default function CompanyDetail() {
             helpLine={target.type === 'round'
               ? 'Ping status tracks the latest round only and clears when you get its result.'
               : undefined}
-            onEmail={() => openEmail(company.id, target.type === 'round' ? 'follow_up' : 'check_fit')}
+            onEmail={() => router.push({ pathname: '/company/[id]/follow-up', params: { id: company.id, template: defaultTemplate(target) } })}
             onCall={phone ? () => Linking.openURL(telUri(phone)) : undefined}
             callLabel={firstName(contactName) ? `Call ${firstName(contactName)}` : 'Call'}
             onPinged={() => markPinged(company.id, target, 'mark')}
