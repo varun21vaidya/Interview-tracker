@@ -23,7 +23,8 @@ export default function RootLayout() {
   return (
     <Stack>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="spike" options={{ title: 'Spike (temporary)' }} />
+      <Stack.Screen name="debug-events" options={{ title: 'Debug events (temporary)' }} />
+      <Stack.Screen name="spike"options={{ title: 'Spike (temporary)' }} />
     </Stack>
   );
 }

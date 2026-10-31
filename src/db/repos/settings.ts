@@ -21,3 +21,27 @@ export async function getSignature(): Promise<string> {
   return (await getSetting(SIGNATURE_KEY)) ?? DEFAULT_SIGNATURE;
 }
 export const setSignature = (text: string) => setSetting(SIGNATURE_KEY, text);
+
+// ---- Calendar settings (Phase 7) ----
+export const DEFAULT_KEYWORDS = ['interview', 'round', 'screening', 'technical', 'HR', 'recruiter'];
+
+async function getList(key: string): Promise<string[] | null> {
+  const raw = await getSetting(key);
+  if (raw === null) return null;
+  try {
+    const v: unknown = JSON.parse(raw);
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : null;
+  } catch { return null; }
+}
+
+/** No calendar is ticked by default. */
+export const getCalendarIds = async () => (await getList('calendar_ids')) ?? [];
+export const setCalendarIds = (ids: string[]) => setSetting('calendar_ids', JSON.stringify(ids));
+
+export const getKeywords = async () => (await getList('keywords')) ?? DEFAULT_KEYWORDS;
+export const setKeywords = (kws: string[]) => setSetting('keywords', JSON.stringify(kws));
+
+export async function getLastSync(): Promise<number | null> {
+  const n = Number(await getSetting('last_sync'));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
