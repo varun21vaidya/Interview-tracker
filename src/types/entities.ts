@@ -10,8 +10,8 @@ export interface Recruiter { companyId: string; name?: string; phone?: string; e
 export interface Round {
   id: string; companyId: string; source: 'manual' | 'calendar'; calendarEventId?: string;
   type: 'walk_in' | 'offline' | 'phone' | 'online'; label: string;
-  startsAt: number; endsAt?: number; orderAt: number;
-  result: Result; changeFlag?: 'moved' | 'cancelled'; autoAddedAt?: number;
+  startsAt: number; endsAt?: number; orderAt: number; locationOrLink?: string;
+  result: Result; changeFlag?: 'moved' | 'cancelled'; autoAddedAt?: number; note?: string;
 }
 export interface RecruiterCall { id: string; companyId: string; callAt: number; recruiterName?: string; said?: string }
 export interface Ping { id: string; companyId: string; targetType: 'round' | 'recruiter_call'; targetId: string; pingedAt: number; channel: Channel }
