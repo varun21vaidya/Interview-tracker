@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, Button, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { Link } from 'expo-router';
 import { getCalendars } from 'expo-calendar';
 import { loadSampleData } from '../../src/db/seed';
@@ -7,6 +7,8 @@ import {
   getCalendarIds, getKeywords, getLastSync, getSignature, setCalendarIds, setKeywords, setSignature,
 } from '../../src/db/repos/settings';
 import { updatedText } from '../../src/domain/home';
+import { countsText, UNENCRYPTED_NOTE } from '../../src/domain/backup';
+import { exportBackup, exportSummary, pickBackup, restore } from '../../src/services/backup';
 import { getCalendarAccess, requestCalendarAccess, type CalendarAccess } from '../../src/services/permissions';
 import { Chip } from '../../src/components/Chip';
 import { useData } from '../../src/hooks/useData';
@@ -23,6 +25,7 @@ export default function Settings() {
       <CalendarsCard />
       <KeywordsCard />
       <SignatureCard />
+      <BackupCard />
       {__DEV__ && (
         <View style={styles.dev}>
           <Link href="/debug-events">Debug: read events (temporary)</Link>
@@ -188,6 +191,48 @@ function SignatureEditor({ initial }: { initial: string }) {
         style={styles.input}
       />
       <Text style={styles.help}>Added to the end of every follow-up email.</Text>
+    </Card>
+  );
+}
+
+/** Export, summary and import. Import asks first and shows what the file contains. */
+function BackupCard() {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+
+  async function run(label: string, job: () => Promise<string | void>) {
+    setBusy(true); setMessage('');
+    try { const done = await job(); if (done) setMessage(done); }
+    catch (e) { setMessage(`${label} failed: ${e instanceof Error ? e.message : String(e)}`); }
+    finally { setBusy(false); }
+  }
+
+  const importFile = () => run('Import', async () => {
+    const b = await pickBackup();
+    if (!b) return;
+    const msg = `This file has ${countsText(b)}.
+
+Everything currently in the app will be replaced. This cannot be undone.`;
+    const ok = Platform.OS === 'web'                 // Alert.alert does nothing on web
+      ? window.confirm(msg)
+      : await new Promise<boolean>(resolve => Alert.alert('Replace all data?', msg, [
+          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Replace', style: 'destructive', onPress: () => resolve(true) },
+        ], { cancelable: true, onDismiss: () => resolve(false) }));
+    if (!ok) return;
+    await restore(b);
+    return 'Backup restored.';
+  });
+
+  return (
+    <Card style={styles.card}>
+      <Text style={styles.cardTitle}>Backup</Text>
+      <Text style={styles.help}>Save or restore companies, rounds and notes as a file. This is the only protection if the phone is lost or reset.</Text>
+      <Button title="Export backup" onPress={() => run('Export', async () => { await exportBackup(); })} disabled={busy} />
+      <Button title="Share readable summary" onPress={() => run('Export', async () => { await exportSummary(); })} disabled={busy} />
+      <Button title="Import backup" onPress={importFile} disabled={busy} />
+      <Text style={styles.warn}>{UNENCRYPTED_NOTE}</Text>
+      {message ? <Text style={styles.help}>{message}</Text> : null}
     </Card>
   );
 }

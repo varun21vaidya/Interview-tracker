@@ -43,8 +43,9 @@ async function getList(key: string): Promise<string[] | null> {
 export const getCalendarIds = async () => (await getList('calendar_ids')) ?? [];
 export const setCalendarIds = (ids: string[]) => setSetting('calendar_ids', JSON.stringify(ids));
 
-export const getKeywords = async () => (await getList('keywords')) ?? DEFAULT_KEYWORDS;
-export const setKeywords = (kws: string[]) => setSetting('keywords', JSON.stringify(kws));
+export const KEYWORDS_KEY = 'keywords';
+export const getKeywords = async () => (await getList(KEYWORDS_KEY)) ?? DEFAULT_KEYWORDS;
+export const setKeywords = (kws: string[]) => setSetting(KEYWORDS_KEY, JSON.stringify(kws));
 
 export async function getLastSync(): Promise<number | null> {
   const n = Number(await getSetting('last_sync'));

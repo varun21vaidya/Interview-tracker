@@ -3,7 +3,9 @@
     "name": "Interview Tracker",
     "slug": "interview-tracker",
     "scheme": "interviewtracker",
-    "web": { "bundler": "metro" },
+    "web": {
+      "bundler": "metro"
+    },
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -25,7 +27,8 @@
       "expo-dev-client",
       "expo-calendar",
       "expo-notifications",
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-sharing"
     ]
   }
 }
