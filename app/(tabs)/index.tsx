@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Tabs, useRouter } from 'expo-router';
 import { Banner } from '../../src/components/Banner';
@@ -12,6 +12,7 @@ import { markPinged } from '../../src/db/repos/actions';
 import { undoAutoAdd } from '../../src/db/repos/sync';
 import { dateLine, type WaitingModel } from '../../src/domain/home';
 import { bannerText } from '../../src/domain/syncRules';
+import { useAccessCard } from '../../src/hooks/useAccessCard';
 import { useHome } from '../../src/hooks/useHome';
 import { useSync } from '../../src/hooks/useSync';
 import { colors, space, type } from '../../src/theme/tokens';
@@ -19,6 +20,7 @@ import { colors, space, type } from '../../src/theme/tokens';
 export default function Home() {
   const router = useRouter();
   const { view, now, lastSync, error, refreshing, refresh } = useHome();
+  const showAccess = useAccessCard();
   const sync = useSync({ auto: true });          // app open and return to foreground, debounced to once a minute
   const onRefresh = () => { refresh(); void sync.run(); };
 
@@ -50,6 +52,16 @@ export default function Home() {
           <Button label="Refresh" variant="secondary" onPress={onRefresh} disabled={sync.syncing} />
         </View>
 
+        {showAccess && (
+          <Card>
+            <Text style={styles.emptyTitle}>Calendar access is off</Text>
+            <Text style={styles.emptyBody}>Allow calendar access to find new interviews. Manual entries still work.</Text>
+            <View style={styles.actions}>
+              <View style={styles.grow}><Button label="Open app settings" onPress={() => { void Linking.openSettings(); }} /></View>
+              <View style={styles.grow}><Button label="Settings tab" variant="secondary" onPress={() => router.push('/settings')} /></View>
+            </View>
+          </Card>
+        )}
         {error && <Text style={styles.empty}>Could not load your interviews.</Text>}
         {!!sync.message && <Text accessibilityLiveRegion="polite" style={styles.syncNote}>{sync.message}</Text>}
 

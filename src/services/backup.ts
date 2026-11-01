@@ -13,6 +13,7 @@ import {
 import {
   assertSize, buildSummary, parseBackup, SCHEMA_VERSION, TABLE_ORDER, type Backup, type ReminderMinutes,
 } from '../domain/backup';
+import { withSyncPaused } from './calendarSync';
 import { getLeadMs, LEAD_KEY, syncReminder, type Lead } from './notifications';
 
 type Row = Record<string, unknown>;
@@ -93,22 +94,23 @@ export async function pickBackup(): Promise<Backup | null> {
  */
 export async function restore(b: Backup) {
   const db = await getDb();
-  await db.withTransactionAsync(async () => {
+  // Exclusive transaction: its own connection, so no other write can interleave. Sync is paused too.
+  await withSyncPaused(() => db.withExclusiveTransactionAsync(async txn => {
     // Children first. Table names are constants, never from the file.
-    for (const t of [...TABLE_ORDER].reverse()) await db.runAsync(`DELETE FROM ${t}`);
-    for (const t of ['review_item', 'ignored_event', 'calendar_event', 'notification_map']) await db.runAsync(`DELETE FROM ${t}`);
+    for (const t of [...TABLE_ORDER].reverse()) await txn.runAsync(`DELETE FROM ${t}`);
+    for (const t of ['review_item', 'ignored_event', 'calendar_event', 'notification_map']) await txn.runAsync(`DELETE FROM ${t}`);
     for (const t of TABLE_ORDER) {
       const rows = (b as unknown as Record<string, Row[]>)[t];
       if (!rows.length) continue;
       const cols = Object.keys(rows[0]);                  // keys come from our validator, not the file
       const sql = `INSERT INTO ${t} (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`;
-      for (const r of rows) await db.runAsync(sql, cols.map(c => r[c] as SQLite.SQLiteBindValue));
+      for (const r of rows) await txn.runAsync(sql, cols.map(c => r[c] as SQLite.SQLiteBindValue));
     }
     const s = b.settings;
-    if (s.signature !== undefined) await writeSetting(db, SIGNATURE_KEY, s.signature);
-    if (s.keywords !== undefined) await writeSetting(db, KEYWORDS_KEY, JSON.stringify(s.keywords));
-    if (s.reminder_minutes !== undefined) await writeSetting(db, LEAD_KEY, LEAD_BY_MINUTES[s.reminder_minutes]);
-  });
+    if (s.signature !== undefined) await writeSetting(txn, SIGNATURE_KEY, s.signature);
+    if (s.keywords !== undefined) await writeSetting(txn, KEYWORDS_KEY, JSON.stringify(s.keywords));
+    if (s.reminder_minutes !== undefined) await writeSetting(txn, LEAD_KEY, LEAD_BY_MINUTES[s.reminder_minutes]);
+  }));
   try { await Notifications.cancelAllScheduledNotificationsAsync(); } catch { /* best effort */ }
   // The old ids are gone with the data; schedule again for the restored future manual rounds (never throws).
   const manual = await db.getAllAsync<{ id: string }>("SELECT id FROM round WHERE source='manual' AND result='pending' AND starts_at > ?", [Date.now()]);

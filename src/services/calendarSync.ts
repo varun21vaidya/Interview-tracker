@@ -32,7 +32,7 @@ export async function readEvents(
 
 export type SyncResult =
   | { status: 'done'; changes: number }
-  | { status: 'skipped'; reason: 'no-calendars' | 'no-access' | 'debounced' };
+  | { status: 'skipped'; reason: 'no-calendars' | 'no-access' | 'debounced' | 'paused' };
 
 /**
  * Reads the ticked calendars, diffs against the cache and applies the changes in one transaction.
@@ -83,12 +83,28 @@ export async function applyChanges(changes: Change[], ctx: MatchCtx, now: number
 const DEBOUNCE_MS = 60_000;
 let inFlight: Promise<SyncResult> | null = null;
 let lastStart = 0;
+let paused = false;
+
+/**
+ * Runs `job` while no calendar sync can start or be running (used by restore, which replaces every table).
+ * Waits for a sync already in flight, and syncs requested meanwhile are skipped.
+ */
+export async function withSyncPaused<T>(job: () => Promise<T>): Promise<T> {
+  paused = true;
+  try {
+    if (inFlight) await inFlight.catch(() => undefined);
+    return await job();
+  } finally {
+    paused = false;
+  }
+}
 
 /**
  * Entry point for every trigger. One sync at a time: a second caller gets the running one.
  * Automatic triggers (app open, return to foreground) are debounced to once per 60 s; buttons and pull-to-refresh pass force.
  */
 export function requestSync({ force = false }: { force?: boolean } = {}, now = Date.now()): Promise<SyncResult> {
+  if (paused) return Promise.resolve({ status: 'skipped', reason: 'paused' });
   if (inFlight) return inFlight;
   if (!force && now - lastStart < DEBOUNCE_MS) return Promise.resolve({ status: 'skipped', reason: 'debounced' });
   lastStart = now;

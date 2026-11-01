@@ -9,3 +9,6 @@ Found in the Phase 12 walk-through. Outside the spec, so not done.
 - Monthly export reminder (listed as an ASSUMPTION in the plan risks).
 - Retry button on the "Could not open the database" screen.
 - Remove `app/spike.tsx` and `app/debug-events.tsx` once no longer needed. Both are `__DEV__` only now.
+
+- Silent failure also remains on Home "Mark as pinged" (not wrapped yet).
+- Monthly export reminder deferred by owner.

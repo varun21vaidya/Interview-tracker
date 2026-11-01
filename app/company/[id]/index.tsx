@@ -3,6 +3,7 @@ import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, Vie
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
+import { Banner } from '../../../src/components/Banner';
 import { Bubble } from '../../../src/components/Bubble';
 import { Button } from '../../../src/components/Button';
 import { Card } from '../../../src/components/Card';
@@ -18,6 +19,7 @@ import { firstName, telUri } from '../../../src/domain/contact';
 import { agoText, modeLabel, type CompanyDetailModel } from '../../../src/domain/detail';
 import { defaultTemplate } from '../../../src/domain/email';
 import { shortDate } from '../../../src/domain/status';
+import { useActionRunner } from '../../../src/hooks/useActionRunner';
 import { useCompany } from '../../../src/hooks/useCompany';
 import { colors, MIN_TOUCH, radius, space, type } from '../../../src/theme/tokens';
 import type { Bundle } from '../../../src/types/entities';
@@ -33,6 +35,7 @@ export default function CompanyDetail() {
   const [renaming, setRenaming] = useState<string | null>(null);           // draft name while the rename box is open
   const [picker, setPicker] = useState<{ kind: 'merge' } | { kind: 'move'; roundId: string } | null>(null);
   const others = useData(loadBundles).data;
+  const { error: actionError, run } = useActionRunner();
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/companies'));
 
@@ -70,7 +73,8 @@ export default function CompanyDetail() {
         <View style={styles.bubbleRow}>
           {model.bubbles.map(b => <Bubble key={b.text} {...b} />)}
         </View>
-        {rejected && <Button label="Reopen" variant="secondary" onPress={() => reopenCompany(company.id)} />}
+        {!!actionError && <Banner tone="amber" text={actionError} />}
+        {rejected && <Button label="Reopen" variant="secondary" onPress={run(() => reopenCompany(company.id), 'Could not reopen this company. Try again.')} />}
 
         {!timeline && (
           <View style={styles.tiles}>
@@ -80,8 +84,8 @@ export default function CompanyDetail() {
         )}
 
         {timeline
-          ? <TimelineCard bundle={bundle} model={model} onNotMoving={() => notMovingForward(company.id)} />
-          : <RoundsCard model={model} onMove={roundId => setPicker({ kind: 'move', roundId })} />}
+          ? <TimelineCard bundle={bundle} model={model} onNotMoving={run(() => notMovingForward(company.id), 'Could not update this company. Try again.')} />
+          : <RoundsCard model={model} run={run} onMove={roundId => setPicker({ kind: 'move', roundId })} />}
 
         {target && (
           <FollowUpCard
@@ -92,7 +96,7 @@ export default function CompanyDetail() {
             onEmail={() => router.push({ pathname: '/company/[id]/follow-up', params: { id: company.id, template: defaultTemplate(target) } })}
             onCall={phone ? () => Linking.openURL(telUri(phone)) : undefined}
             callLabel={firstName(contactName) ? `Call ${firstName(contactName)}` : 'Call'}
-            onPinged={() => markPinged(company.id, target, 'mark')}
+            onPinged={run(() => markPinged(company.id, target, 'mark'), 'Could not save the ping. Try again.')}
           >
             {target.type === 'round'
               ? <RoundSummary bundle={bundle} model={model} now={now} />
@@ -119,8 +123,8 @@ export default function CompanyDetail() {
             <Button label="Rename" variant="secondary" onPress={() => { setMenu(false); setRenaming(company.name); }} />
             <Button label="Merge with another company" variant="secondary" onPress={() => { setMenu(false); setPicker({ kind: 'merge' }); }} />
             {rejected
-              ? <Button label="Reopen" variant="secondary" onPress={() => { setMenu(false); reopenCompany(company.id); }} />
-              : <Danger label="Not moving forward" onPress={() => { setMenu(false); notMovingForward(company.id); }} />}
+              ? <Button label="Reopen" variant="secondary" onPress={() => { setMenu(false); void run(() => reopenCompany(company.id), 'Could not reopen this company. Try again.')(); }} />
+              : <Danger label="Not moving forward" onPress={() => { setMenu(false); void run(() => notMovingForward(company.id), 'Could not update this company. Try again.')(); }} />}
           </View>
         </Pressable>
       </Modal>
@@ -145,9 +149,12 @@ export default function CompanyDetail() {
           companies={(others ?? []).map(b => b.company).filter(c => c.id !== company.id)}
           onCancel={() => setPicker(null)}
           onConfirm={async target => {
-            if (picker.kind === 'merge') { await mergeCompanies(target, company.id); await syncCompanyReminders(company.id); }
-            else { await moveRound(picker.roundId, target); await syncReminder(picker.roundId); }
+            const ok = await run(async () => {
+              if (picker.kind === 'merge') { await mergeCompanies(target, company.id); await syncCompanyReminders(company.id); }
+              else { await moveRound(picker.roundId, target); await syncReminder(picker.roundId); }
+            }, picker.kind === 'merge' ? 'Could not merge the companies. Nothing was changed.' : 'Could not move the round. Nothing was changed.')();
             setPicker(null);
+            if (!ok) return;
           }}
         />
       )}
@@ -218,7 +225,9 @@ function BackLink({ onPress }: { onPress: () => void }) {
   );
 }
 
-function RoundsCard({ model, onMove }: { model: CompanyDetailModel; onMove: (roundId: string) => void }) {
+type Runner = ReturnType<typeof useActionRunner>['run'];
+
+function RoundsCard({ model, onMove, run }: { model: CompanyDetailModel; onMove: (roundId: string) => void; run: Runner }) {
   const router = useRouter();
   return (
     <Card style={styles.card}>
@@ -233,10 +242,10 @@ function RoundsCard({ model, onMove }: { model: CompanyDetailModel; onMove: (rou
           {row.actions && (
             <View style={styles.actions}>
               <View style={styles.pair}>
-                <View style={styles.flex}><Button label="Mark approved" onPress={() => setResult(row.round.id, 'approved')} /></View>
-                <View style={styles.flex}><Danger label="Mark rejected" onPress={() => setResult(row.round.id, 'rejected')} /></View>
+                <View style={styles.flex}><Button label="Mark approved" onPress={run(() => setResult(row.round.id, 'approved'), 'Could not save the result. Try again.')} /></View>
+                <View style={styles.flex}><Danger label="Mark rejected" onPress={run(() => setResult(row.round.id, 'rejected'), 'Could not save the result. Try again.')} /></View>
               </View>
-              <Button label="Interview didn’t happen" variant="secondary" onPress={() => setResult(row.round.id, 'didnt_happen')} />
+              <Button label="Interview didn’t happen" variant="secondary" onPress={run(() => setResult(row.round.id, 'didnt_happen'), 'Could not save the result. Try again.')} />
               <Text style={styles.help}>
                 Rejected moves the company to Rejected. Didn’t happen is not counted and tracks no result or ping.
               </Text>
