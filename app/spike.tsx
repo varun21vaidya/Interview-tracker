@@ -21,6 +21,7 @@ type State =
 export default function Spike() {
   const insets = useSafeAreaInsets();
   const [state, setState] = useState<State>({ kind: 'idle' });
+  if (!__DEV__) return null; // reachable by deep link, so never expose calendar contents in a release build
 
   async function load() {
     setState({ kind: 'loading' });

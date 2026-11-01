@@ -65,8 +65,10 @@ export async function mergeCompanies(sourceId: string, targetId: string) {
     await db.runAsync(
       `UPDATE company SET
          notes = NULLIF(trim(COALESCE(notes,'') || char(10) || COALESCE((SELECT notes FROM company WHERE id=?),'')), ''),
+         jd_words = CASE WHEN jd_text IS NULL THEN (SELECT jd_words FROM company WHERE id=?) ELSE jd_words END,
+         jd_link = COALESCE(jd_link, (SELECT jd_link FROM company WHERE id=?)),
          jd_text = COALESCE(jd_text, (SELECT jd_text FROM company WHERE id=?))
-       WHERE id=?`, [sourceId, sourceId, targetId]);
+       WHERE id=?`, [sourceId, sourceId, sourceId, sourceId, targetId]);
     await db.runAsync('DELETE FROM company WHERE id=?', [sourceId]);   // cascades leftover alias/recruiter rows
   });
   emitChange();
@@ -137,7 +139,7 @@ export async function addRound(c: NewCompanyFields, r: RoundFields, now = Date.n
   });
   emitChange();
   // First manual round asks for notification permission (the OS only prompts while undecided). Failures never block the save.
-  try { await ensureNotificationPermission(true); } catch (e) { console.warn('notification permission', e); }
+  try { await ensureNotificationPermission(true); } catch { /* a permission problem never blocks a save */ }
   await syncReminder(roundId, now);
   return companyId;
 }
@@ -172,7 +174,7 @@ export async function updateRound(roundId: string, r: RoundFields, now = Date.no
 export async function deleteRound(roundId: string) {
   const db = await getDb();
   // Cancel first: deleting the round cascades the notification_map row away.
-  try { await cancelReminder(roundId); } catch (e) { console.warn('reminder not cancelled', e); }
+  try { await cancelReminder(roundId); } catch { /* a stale reminder must not block the delete */ }
   await db.runAsync("DELETE FROM round WHERE id=? AND source='manual'", [roundId]);
   emitChange();
 }

@@ -23,6 +23,7 @@ export default function WhichCompany() {
   const [position, setPosition] = useState(1);
   const [newName, setNewName] = useState('');
   const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState('');
   const finished = useRef(false);          // after a decision the reload shows "no longer open"; keep that flash hidden
 
   const item = data?.item ?? null;
@@ -45,9 +46,9 @@ export default function WhichCompany() {
 
   const run = async (action: () => Promise<unknown>, then: () => void) => {
     if (busy) return;
-    setBusy(true);
+    setBusy(true); setFailure('');
     finished.current = true;
-    try { await action(); then(); } catch { finished.current = false; } finally { setBusy(false); }
+    try { await action(); then(); } catch { finished.current = false; setFailure('Could not save. Nothing was changed, try again.'); } finally { setBusy(false); }
   };
   const openCompany = (id: string | null) =>
     id ? router.replace({ pathname: '/company/[id]', params: { id } }) : goBack();   // null: someone else already decided it
@@ -139,6 +140,7 @@ export default function WhichCompany() {
 
         {data && item && (
           <View style={styles.footer}>
+            {!!failure && <Text accessibilityLiveRegion="polite" style={styles.failure}>{failure}</Text>}
             <Button
               label={chosen ? placeLabel(chosen.company.name, position) : 'Choose a company above'}
               onPress={place} disabled={!chosen || busy}
@@ -158,6 +160,7 @@ const styles = StyleSheet.create({
   backText: { ...type.body, color: colors.accent, fontWeight: '600' },
   title: { ...type.title, color: colors.text },
   muted: { ...type.body, color: colors.textMuted },
+  failure: { ...type.body, color: '#8A1C1C', marginBottom: space.sm },
   eventCard: { backgroundColor: tones.amber.bg, borderRadius: radius.md, padding: space.lg, gap: space.xs },
   eventTitle: { ...type.name, color: tones.amber.fg },
   eventLine: { ...type.body, color: tones.amber.fg },

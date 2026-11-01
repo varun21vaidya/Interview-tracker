@@ -13,7 +13,7 @@ import {
 import {
   assertSize, buildSummary, parseBackup, SCHEMA_VERSION, TABLE_ORDER, type Backup, type ReminderMinutes,
 } from '../domain/backup';
-import { getLeadMs, LEAD_KEY, type Lead } from './notifications';
+import { getLeadMs, LEAD_KEY, syncReminder, type Lead } from './notifications';
 
 type Row = Record<string, unknown>;
 
@@ -109,7 +109,9 @@ export async function restore(b: Backup) {
     if (s.keywords !== undefined) await writeSetting(db, KEYWORDS_KEY, JSON.stringify(s.keywords));
     if (s.reminder_minutes !== undefined) await writeSetting(db, LEAD_KEY, LEAD_BY_MINUTES[s.reminder_minutes]);
   });
-  try { await Notifications.cancelAllScheduledNotificationsAsync(); }
-  catch (e) { console.warn('could not cancel old reminders', e); }
+  try { await Notifications.cancelAllScheduledNotificationsAsync(); } catch { /* best effort */ }
+  // The old ids are gone with the data; schedule again for the restored future manual rounds (never throws).
+  const manual = await db.getAllAsync<{ id: string }>("SELECT id FROM round WHERE source='manual' AND result='pending' AND starts_at > ?", [Date.now()]);
+  for (const r of manual) await syncReminder(r.id);
   emitChange();
 }

@@ -70,8 +70,8 @@ export async function syncReminder(roundId: string, now = Date.now()) {
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at, channelId: CHANNEL },
     });
     await saveNotificationId(roundId, id);
-  } catch (e) {
-    console.warn('reminder not scheduled', e);
+  } catch {
+    /* a notification problem never blocks a save */
   }
 }
 

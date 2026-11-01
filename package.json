@@ -38,6 +38,7 @@
     "start": "expo start --dev-client",
     "android": "expo run:android",
     "build:dev": "eas build --profile development --platform android",
+    "build:release": "eas build --profile release --platform android",
     "test": "jest",
     "typecheck": "tsc --noEmit"
   },

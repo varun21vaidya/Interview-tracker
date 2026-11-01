@@ -36,6 +36,7 @@ export default function AddInterview() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(!editing);
+  const [failure, setFailure] = useState('');   // load or save problem, shown instead of failing silently
 
   useEffect(() => {
     if (!roundId) return;
@@ -46,7 +47,7 @@ export default function AddInterview() {
       setDate(dateText(r.startsAt)); setTime(timeText(r.startsAt));
       setWhere(r.locationOrLink ?? ''); setContactName(r.contactName ?? ''); setContactPhone(r.contactPhone ?? '');
       setNotes(r.notes ?? ''); setLoaded(true);
-    });
+    }).catch(() => setFailure('Could not load this interview.'));
   }, [roundId]);
 
   const recruiter = kind === 'recruiter_call';
@@ -56,7 +57,7 @@ export default function AddInterview() {
     setErrors(e);
     if (Object.keys(e).length) return;
     const startsAt = parseStart(date, time)!;
-    setSaving(true);
+    setSaving(true); setFailure('');
     try {
       if (recruiter) {
         const id = await addRecruiterCall(
@@ -68,10 +69,14 @@ export default function AddInterview() {
       if (roundId) { await updateRound(roundId, fields); goBack(); return; }
       const id = await addRound({ company, role, recruiterName: contactName, recruiterPhone: contactPhone }, fields);
       router.replace({ pathname: '/company/[id]', params: { id } });
+    } catch {
+      setFailure('Could not save. Nothing was changed, try again.');
     } finally { setSaving(false); }
   };
 
-  const doDelete = async () => { await deleteRound(roundId!); goBack(); };
+  const doDelete = async () => {
+    try { await deleteRound(roundId!); goBack(); } catch { setFailure('Could not delete this round.'); }
+  };
   const remove = () => Platform.OS === 'web'
     ? (globalThis.confirm?.('Delete this round? Its pings are deleted too.') ?? true) && void doDelete()   // Alert.alert is a no-op on web
     : Alert.alert('Delete this round?', 'Its pings are deleted too.', [
@@ -79,7 +84,19 @@ export default function AddInterview() {
     { text: 'Delete', style: 'destructive', onPress: doDelete },
   ]);
 
-  if (!loaded) return null;
+  if (!loaded) {
+    return (
+      <SafeAreaView style={styles.screen}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.header}>
+          <Pressable accessibilityRole="button" onPress={() => goBack()} style={styles.cancel}>
+            <Text style={styles.cancelText}>Cancel</Text>
+          </Pressable>
+          {!!failure && <Text style={styles.help}>{failure}</Text>}
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
@@ -126,6 +143,7 @@ export default function AddInterview() {
           {editing && <Button label="Delete round" variant="secondary" onPress={remove} />}
         </ScrollView>
         <View style={styles.footer}>
+          {!!failure && <Text accessibilityLiveRegion="polite" style={styles.error}>{failure}</Text>}
           <Button label={editing ? 'Save changes' : 'Save'} onPress={save} disabled={saving} />
         </View>
       </KeyboardAvoidingView>

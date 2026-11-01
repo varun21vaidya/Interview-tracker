@@ -24,8 +24,9 @@ export default function Home() {
 
   const openCompany = (id: string) => router.push({ pathname: '/company/[id]', params: { id } });
   const addInterview = () => router.push('/add');
-  // Email screen (3.6) is out of scope for this phase: stubbed. `model.template` says which text it will open with.
-  const openEmail = (_m: WaitingModel) => {};
+  // `model.template` says which text the email screen opens with (Check fit for a recruiter call only).
+  const openEmail = (m: WaitingModel) =>
+    router.push({ pathname: '/company/[id]/follow-up', params: { id: m.companyId, template: m.template } });
   const pinged = (m: WaitingModel) => { markPinged(m.companyId, m.target, 'mark'); };
   const openReviews = () => router.push('/review');
   // Change: take the round back out (like Undo) and open Which company? for the same event.

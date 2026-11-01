@@ -12,4 +12,10 @@ config.server.enhanceMiddleware = middleware => (req, res, next) => {
   middleware(req, res, next);
 };
 
+// Release bundles only (minify is off in dev): remove every console.* call.
+config.transformer.minifierConfig = {
+  ...config.transformer.minifierConfig,
+  compress: { ...config.transformer.minifierConfig?.compress, drop_console: true },
+};
+
 module.exports = config;

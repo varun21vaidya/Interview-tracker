@@ -130,8 +130,9 @@ function CalendarsCard() {
 
 /** Interview keywords: tap a chip to remove it. Events matching a keyword are kept. */
 function KeywordsCard() {
-  const { data } = useData(getKeywords, []);
+  const { data, error } = useData(getKeywords, []);
   const [draft, setDraft] = useState('');
+  if (error) return <LoadFailed title="Interview keywords" />;
   if (data === null) return null;
 
   function add() {
@@ -169,9 +170,19 @@ function KeywordsCard() {
   );
 }
 
+function LoadFailed({ title }: { title: string }) {
+  return (
+    <Card style={styles.card}>
+      <Text style={styles.cardTitle}>{title}</Text>
+      <Text style={styles.warn}>Could not load this setting. Close and reopen the app.</Text>
+    </Card>
+  );
+}
+
 /** Email signature. Saved on blur; the stored value is what every follow-up email ends with. */
 function SignatureCard() {
-  const { data } = useData(getSignature, []);
+  const { data, error } = useData(getSignature, []);
+  if (error) return <LoadFailed title="Email signature" />;
   if (data === null) return null;
   return <SignatureEditor key="sig" initial={data} />;
 }
