@@ -62,6 +62,11 @@ describe('companyRow', () => {
     expect(companyRow(b, NOW).statusLine).toBe('Round 2 approved · next not scheduled');
   });
 
+  it('forgotten result on the last finished round reads as approved once the next round is scheduled', () => {
+    const b = bundle({ rounds: [round('r1', at(10, 20)), round('r2', at(11, 4, 15))] });
+    expect(companyRow(b, NOW).statusLine).toBe('Round 1 approved · round 2 in 4 days');
+  });
+
   it('upcoming round on a later day', () => {
     const b = bundle({ rounds: [round('r1', at(10, 20), { result: 'approved' }), round('r2', at(11, 4, 15))] });
     expect(companyRow(b, NOW).statusLine).toBe('Round 1 approved · round 2 in 4 days');

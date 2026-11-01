@@ -72,6 +72,73 @@ describe('companyDetail', () => {
   });
 });
 
+describe('earlier rounds count as approved once a later round exists', () => {
+  const three = (o: Partial<Round> = {}): Bundle => ({
+    company: company(), calls: [], pings: [],
+    rounds: [round('r1', at(10, 10)), round('r2', at(10, 15)), round('r3', at(10, 20), o)],
+  });
+
+  it('forgotten results on rounds 1 and 2: only round 3 stays pending and gets the buttons', () => {
+    const m = companyDetail(three(), NOW);
+    expect(m.rows.map(r => r.bubble.text)).toEqual(['Approved', 'Approved', 'Pending · 11 days']);
+    expect(m.rows.map(r => r.actions)).toEqual([false, false, true]);
+    expect(m.rows.map(r => r.assumed)).toEqual([true, true, false]);
+    expect([m.approved, m.awaiting]).toEqual([2, 1]);
+  });
+
+  it('a scheduled next round also counts, so nothing is left waiting', () => {
+    const m = companyDetail(three({ startsAt: at(11, 5), orderAt: at(11, 5) }), NOW);
+    expect(m.rows.map(r => r.bubble.text)).toEqual(['Approved', 'Approved', 'Upcoming']);
+    expect(m.target).toBeNull();
+    expect(m.awaiting).toBe(0);
+  });
+
+  it('a later round cancelled in the calendar proves nothing', () => {
+    const m = companyDetail(three({ changeFlag: 'cancelled' }), NOW);
+    expect(m.rows[1].bubble.text).not.toBe('Approved');
+    expect(m.rows[1].assumed).toBe(false);
+  });
+
+  it('a later didn’t-happen round proves nothing, and a real result is never overwritten', () => {
+    const none = companyDetail(three({ result: 'didnt_happen' }), NOW);
+    expect(none.rows[1].bubble.text).toBe('Pending · 16 days');
+    expect(none.rows[0].bubble.text).toBe('Approved');
+    const b = three();
+    b.rounds[0] = { ...b.rounds[0], result: 'didnt_happen' };
+    const m = companyDetail(b, NOW);
+    expect(m.rows[0].bubble.text).toBe('Didn’t happen');
+    expect(m.rows[0].assumed).toBe(false);
+  });
+
+  it('a future round is never assumed approved', () => {
+    const b: Bundle = { company: company(), calls: [], pings: [], rounds: [round('a', at(11, 3)), round('b', at(11, 9))] };
+    expect(companyDetail(b, NOW).rows.map(r => r.bubble.text)).toEqual(['Upcoming', 'Upcoming']);
+  });
+});
+
+describe('Change result', () => {
+  const rows = (r3: Partial<Round>, c: Partial<Company> = {}) => companyDetail({
+    company: company(c), calls: [], pings: [],
+    rounds: [round('r1', at(10, 10), { result: 'approved' }), round('r2', at(10, 20), r3)],
+  }, NOW).rows;
+
+  it('offered on a set result, not on a pending or assumed one', () => {
+    expect(rows({ result: 'approved' }).map(r => r.changeable)).toEqual([true, true]);
+    expect(rows({ result: 'didnt_happen' }).map(r => r.changeable)).toEqual([true, true]);
+    expect(rows({})[1].changeable).toBe(false);
+    const assumed = companyDetail({ company: company(), calls: [], pings: [], rounds: [round('a', at(10, 10)), round('b', at(10, 20))] }, NOW);
+    expect(assumed.rows[0].changeable).toBe(false);
+  });
+
+  it('in a rejected company only the rejection can be undone', () => {
+    expect(rows({ result: 'rejected' }, { status: 'rejected', rejectedReason: 'round', rejectedAfterRound: 2 }).map(r => r.changeable)).toEqual([false, true]);
+  });
+
+  it('not offered on a round the calendar flagged, which has its own buttons', () => {
+    expect(rows({ result: 'didnt_happen', changeFlag: 'cancelled' })[1].changeable).toBe(false);
+  });
+});
+
 describe('helpers', () => {
   it('agoText', () => expect(agoText(at(10, 23), NOW)).toBe('23 Oct (8 days ago)'));
   it('telUri strips formatting, keeps leading plus', () => expect(telUri('+91 90000-00001')).toBe('tel:+919000000001'));

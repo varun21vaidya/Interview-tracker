@@ -10,7 +10,7 @@ import { Card } from '../../../src/components/Card';
 import { JdCard } from '../../../src/components/JdCard';
 import { RoundRow } from '../../../src/components/RoundRow';
 import { StatTile } from '../../../src/components/StatTile';
-import { markPinged, mergeCompanies, moveRound, notMovingForward, renameCompany, reopenCompany, saveNotes, setResult } from '../../../src/db/repos/actions';
+import { clearResult, markPinged, mergeCompanies, moveRound, notMovingForward, renameCompany, reopenCompany, saveNotes, setResult } from '../../../src/db/repos/actions';
 import { loadBundles } from '../../../src/db/repos/bundles';
 import { syncCompanyReminders, syncReminder } from '../../../src/services/notifications';
 import { useData } from '../../../src/hooks/useData';
@@ -249,6 +249,15 @@ function RoundsCard({ model, onMove, run }: { model: CompanyDetailModel; onMove:
               <Text style={styles.help}>
                 Rejected moves the company to Rejected. Didn’t happen is not counted and tracks no result or ping.
               </Text>
+            </View>
+          )}
+          {row.changeable && (
+            <Button label="Change result" variant="secondary" onPress={run(() => clearResult(row.round.id), 'Could not change the result. Try again.')} />
+          )}
+          {row.assumed && (
+            <View style={styles.actions}>
+              <Button label="Interview didn’t happen" variant="secondary" onPress={run(() => setResult(row.round.id, 'didnt_happen'), 'Could not save the result. Try again.')} />
+              <Text style={styles.help}>Counted as approved because a later round exists.</Text>
             </View>
           )}
         </RoundRow>

@@ -1,7 +1,7 @@
 import type { Bundle, Round } from '../types/entities';
 import { safeHttps } from '../utils/links';
 import { resultBubble } from './detail';
-import { counted, isDone, roundNumber, waitingTarget, type Target } from './rounds';
+import { counted, effectiveResult, isDone, roundNumber, waitingTarget, type Target } from './rounds';
 import { pendingBubble, pingBubble, type Bubble } from './pings';
 import { shortDate } from './status';
 import { needsAttention } from './syncRules';
@@ -26,7 +26,7 @@ export function buildHome(bundles: Bundle[], openReviews: number, now: number) {
   const waitingIds = new Set(waiting.map(w => w.b.company.id));
   const previous = active
     .filter(b => !waitingIds.has(b.company.id))
-    .flatMap(b => { const round = lastDone(b.rounds, now); return round && round.result !== 'pending' ? [{ b, round }] : []; })
+    .flatMap(b => { const round = lastDone(b.rounds, now); return round && effectiveResult(round, b.rounds, now) !== 'pending' ? [{ b, round }] : []; })
     .sort((x, y) => y.round.startsAt - x.round.startsAt)
     .slice(0, 5);                                        // ASSUMPTION: 5 cards
 
@@ -134,5 +134,5 @@ export const previousModels = (items: HomeModel['previous'], now: number): Previ
   items.map(({ b, round }) => ({
     companyId: b.company.id, name: b.company.name,
     line: [round.label, shortDate(round.startsAt), round.type === 'walk_in' ? 'Walk-in' : undefined].filter(Boolean).join(' · '),
-    bubble: resultBubble(round, now),
+    bubble: resultBubble(round, b.rounds, now),
   }));

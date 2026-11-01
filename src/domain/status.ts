@@ -1,5 +1,5 @@
 import type { Bundle } from '../types/entities';
-import { counted, isDone, roundNumber, waitingTarget } from './rounds';
+import { counted, effectiveResult, isDone, roundNumber, waitingTarget } from './rounds';
 import { pendingBubble, pingBubble, rejectedLabel, type Bubble } from './pings';
 import { daysBetween, plural } from './time';
 
@@ -33,17 +33,18 @@ export function companyRow(b: Bundle, now: number): CompanyRowModel {
   const done = c.filter(r => isDone(r, now));
   const last = done[done.length - 1];
   const upcoming = c.find(r => !isDone(r, now));
+  const lastResult = last && effectiveResult(last, rounds, now);
 
   let statusLine: string;
   if (c.length === 0) {
     const call = [...calls].sort((x, y) => y.callAt - x.callAt)[0];
     // Format from the screenshot. ASSUMPTION: "No interviews yet" when there is no call either.
     statusLine = call ? `Recruiter call ${shortDate(call.callAt)} · not scheduled` : 'No interviews yet';
-  } else if (last && last.result === 'pending') {
+  } else if (last && lastResult === 'pending') {
     statusLine = `Last round ${shortDate(last.startsAt)} · ${shortLabel(last.label)}`; // screenshot
   } else if (last) {
     // "Round 3 approved · round 4 today" is from the screenshot. ASSUMPTION: the other shapes below.
-    const head = `Round ${roundNumber(last, rounds)} ${last.result}`;
+    const head = `Round ${roundNumber(last, rounds)} ${lastResult}`;
     statusLine = upcoming
       ? `${head} · round ${roundNumber(upcoming, rounds)} ${when(upcoming.startsAt, now)}`
       : `${head} · next not scheduled`;

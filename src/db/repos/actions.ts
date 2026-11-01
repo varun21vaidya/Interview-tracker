@@ -31,6 +31,22 @@ export async function setResult(roundId: string, result: Result, now = Date.now(
   emitChange();
 }
 
+/** Change result: back to pending. Undoing the rejection that closed the company also reopens it. */
+export async function clearResult(roundId: string, now = Date.now()) {
+  const db = await getDb();
+  await db.withTransactionAsync(async () => {
+    const r = (await db.getFirstAsync<{ company_id: string; result: Result }>('SELECT company_id, result FROM round WHERE id=?', [roundId]))!;
+    await db.runAsync("UPDATE round SET result='pending', result_set_at=NULL, updated_at=? WHERE id=?", [now, roundId]);
+    if (r.result !== 'rejected') return;
+    const other = await db.getFirstAsync("SELECT 1 FROM round WHERE company_id=? AND result='rejected' LIMIT 1", [r.company_id]);
+    if (other) return;
+    await db.runAsync(
+      "UPDATE company SET status='active', rejected_reason=NULL, rejected_after_round=NULL, rejected_at=NULL, updated_at=? WHERE id=? AND status='rejected' AND rejected_reason='round'",
+      [now, r.company_id]);
+  });
+  emitChange();
+}
+
 export async function notMovingForward(companyId: string, now = Date.now()) {
   const db = await getDb();
   await db.runAsync("UPDATE company SET status='rejected', rejected_reason='not_moving_forward', rejected_at=?, updated_at=? WHERE id=?", [now, now, companyId]);

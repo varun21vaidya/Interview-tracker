@@ -1,4 +1,4 @@
-import type { Round, RecruiterCall } from '../types/entities';
+import type { Result, Round, RecruiterCall } from '../types/entities';
 
 export const isDone = (r: Round, now: number) => (r.endsAt ?? r.startsAt) <= now;
 
@@ -9,6 +9,18 @@ export const counted = (rs: Round[]) =>
 export function roundNumber(r: Round, rs: Round[]): number | null {
   const i = counted(rs).findIndex(x => x.id === r.id);
   return i < 0 ? null : i + 1;
+}
+
+/**
+ * The result to show. Reaching a later round means an earlier one was passed, so a finished round still
+ * pending with a later round after it reads as approved. Derived, not stored: deleting or moving the later
+ * round undoes it. A later round cancelled in the calendar proves nothing, so it does not count.
+ */
+export function effectiveResult(r: Round, rs: Round[], now: number): Result {
+  if (r.result !== 'pending' || !isDone(r, now) || r.changeFlag === 'cancelled') return r.result;
+  const c = counted(rs);
+  const later = c.slice(c.findIndex(x => x.id === r.id) + 1);
+  return later.some(x => x.changeFlag !== 'cancelled') ? 'approved' : 'pending';
 }
 
 /** Position a new event gets by date alone. */
@@ -41,7 +53,7 @@ export function waitingTarget(rs: Round[], calls: RecruiterCall[], now: number):
   }
   for (let i = c.length - 1; i >= 0; i--) {
     if (!isDone(c[i], now)) continue;
-    return c[i].result === 'pending' ? { type: 'round', id: c[i].id, at: c[i].startsAt } : null;
+    return effectiveResult(c[i], rs, now) === 'pending' ? { type: 'round', id: c[i].id, at: c[i].startsAt } : null;
   }
   return null; // only future rounds exist
 }
