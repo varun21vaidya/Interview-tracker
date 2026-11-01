@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
@@ -9,7 +9,10 @@ import { Card } from '../../../src/components/Card';
 import { JdCard } from '../../../src/components/JdCard';
 import { RoundRow } from '../../../src/components/RoundRow';
 import { StatTile } from '../../../src/components/StatTile';
-import { markPinged, notMovingForward, reopenCompany, saveNotes, setResult } from '../../../src/db/repos/actions';
+import { markPinged, mergeCompanies, moveRound, notMovingForward, renameCompany, reopenCompany, saveNotes, setResult } from '../../../src/db/repos/actions';
+import { loadBundles } from '../../../src/db/repos/bundles';
+import { syncCompanyReminders, syncReminder } from '../../../src/services/notifications';
+import { useData } from '../../../src/hooks/useData';
 import { acceptCancel, acceptMove, keepRound, reopenRound } from '../../../src/db/repos/sync';
 import { firstName, telUri } from '../../../src/domain/contact';
 import { agoText, modeLabel, type CompanyDetailModel } from '../../../src/domain/detail';
@@ -25,6 +28,11 @@ export default function CompanyDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { bundle, model, now, error, loading, missing } = useCompany(id);
+
+  const [menu, setMenu] = useState(false);
+  const [renaming, setRenaming] = useState<string | null>(null);           // draft name while the rename box is open
+  const [picker, setPicker] = useState<{ kind: 'merge' } | { kind: 'move'; roundId: string } | null>(null);
+  const others = useData(loadBundles).data;
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/companies'));
 
@@ -52,7 +60,12 @@ export default function CompanyDetail() {
       <Stack.Screen options={{ headerShown: false }} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <BackLink onPress={back} />
-        <Text accessibilityRole="header" style={styles.title}>{company.name}</Text>
+        <View style={styles.titleRow}>
+          <Text accessibilityRole="header" style={[styles.title, styles.flex]}>{company.name}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Company actions" onPress={() => setMenu(true)} style={styles.menuBtn}>
+            <Text style={styles.menuDots}>⋯</Text>
+          </Pressable>
+        </View>
         {!!model.subtitle && <Text style={styles.subtitle}>{model.subtitle}</Text>}
         <View style={styles.bubbleRow}>
           {model.bubbles.map(b => <Bubble key={b.text} {...b} />)}
@@ -68,7 +81,7 @@ export default function CompanyDetail() {
 
         {timeline
           ? <TimelineCard bundle={bundle} model={model} onNotMoving={() => notMovingForward(company.id)} />
-          : <RoundsCard model={model} />}
+          : <RoundsCard model={model} onMove={roundId => setPicker({ kind: 'move', roundId })} />}
 
         {target && (
           <FollowUpCard
@@ -99,7 +112,101 @@ export default function CompanyDetail() {
 
         <NotesCard key={company.id} companyId={company.id} initial={company.notes ?? ''} />
       </ScrollView>
+
+      <Modal transparent animationType="fade" visible={menu} onRequestClose={() => setMenu(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setMenu(false)}>
+          <View style={styles.sheet}>
+            <Button label="Rename" variant="secondary" onPress={() => { setMenu(false); setRenaming(company.name); }} />
+            <Button label="Merge with another company" variant="secondary" onPress={() => { setMenu(false); setPicker({ kind: 'merge' }); }} />
+            {rejected
+              ? <Button label="Reopen" variant="secondary" onPress={() => { setMenu(false); reopenCompany(company.id); }} />
+              : <Danger label="Not moving forward" onPress={() => { setMenu(false); notMovingForward(company.id); }} />}
+          </View>
+        </Pressable>
+      </Modal>
+
+      {renaming !== null && (
+        <RenameModal
+          initial={renaming}
+          onCancel={() => setRenaming(null)}
+          onSave={async name => { await renameCompany(company.id, name); setRenaming(null); }}
+        />
+      )}
+
+      {picker && (
+        <CompanyPicker
+          title={picker.kind === 'merge' ? 'Merge with which company?' : 'Move this round to which company?'}
+          confirmLabel={picker.kind === 'merge'
+            ? (n: string) => `Merge ${n} into ${company.name}`
+            : (n: string) => `Move to ${n}`}
+          note={picker.kind === 'merge'
+            ? 'Its rounds, pings, notes and recruiter calls move here and that company is removed.'
+            : 'Its result, pings and notes go with it.'}
+          companies={(others ?? []).map(b => b.company).filter(c => c.id !== company.id)}
+          onCancel={() => setPicker(null)}
+          onConfirm={async target => {
+            if (picker.kind === 'merge') { await mergeCompanies(target, company.id); await syncCompanyReminders(company.id); }
+            else { await moveRound(picker.roundId, target); await syncReminder(picker.roundId); }
+            setPicker(null);
+          }}
+        />
+      )}
     </SafeAreaView>
+  );
+}
+
+function RenameModal({ initial, onCancel, onSave }: { initial: string; onCancel: () => void; onSave: (name: string) => Promise<void> }) {
+  const [name, setName] = useState(initial);
+  const [err, setErr] = useState('');
+  return (
+    <Modal transparent animationType="fade" visible onRequestClose={onCancel}>
+      <View style={styles.backdrop}>
+        <View style={styles.sheet}>
+          <Text style={styles.cardTitle}>Rename company</Text>
+          <TextInput value={name} onChangeText={setName} autoFocus accessibilityLabel="Company name" style={styles.input} />
+          {!!err && <Text style={styles.error}>{err}</Text>}
+          <Button label="Save" onPress={() => onSave(name).catch(e => setErr(e instanceof Error ? e.message : 'Could not rename.'))} />
+          <Button label="Cancel" variant="secondary" onPress={onCancel} />
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+interface PickerProps {
+  title: string; note: string; companies: { id: string; name: string }[];
+  confirmLabel: (name: string) => string; onCancel: () => void; onConfirm: (id: string) => Promise<void>;
+}
+
+/** Pick a company, then confirm. Used by Merge and by Move to another company. */
+function CompanyPicker({ title, note, companies, confirmLabel, onCancel, onConfirm }: PickerProps) {
+  const [chosen, setChosen] = useState<{ id: string; name: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <Modal transparent animationType="fade" visible onRequestClose={onCancel}>
+      <View style={styles.backdrop}>
+        <View style={[styles.sheet, styles.pickerSheet]}>
+          <Text style={styles.cardTitle}>{title}</Text>
+          {companies.length === 0 && <Text style={styles.muted}>There is no other company yet.</Text>}
+          <ScrollView style={styles.pickerList}>
+            {companies.map(c => (
+              <Pressable
+                key={c.id} accessibilityRole="button" accessibilityState={{ selected: chosen?.id === c.id }}
+                onPress={() => setChosen(c)} style={[styles.pickRow, chosen?.id === c.id && styles.pickRowOn]}
+              >
+                <Text style={styles.rowTitle}>{c.name}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+          {chosen && <Text style={styles.help}>{note}</Text>}
+          <Button
+            label={chosen ? confirmLabel(chosen.name) : 'Choose a company'} disabled={!chosen || busy}
+            onPress={() => { if (!chosen) return; setBusy(true); onConfirm(chosen.id).catch(() => setBusy(false)); }}
+          />
+          <Button label="Cancel" variant="secondary" onPress={onCancel} />
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -111,7 +218,7 @@ function BackLink({ onPress }: { onPress: () => void }) {
   );
 }
 
-function RoundsCard({ model }: { model: CompanyDetailModel }) {
+function RoundsCard({ model, onMove }: { model: CompanyDetailModel; onMove: (roundId: string) => void }) {
   const router = useRouter();
   return (
     <Card style={styles.card}>
@@ -119,6 +226,7 @@ function RoundsCard({ model }: { model: CompanyDetailModel }) {
       {model.rows.map(row => (
         <RoundRow key={row.round.id} row={row}>
           {row.change && <ChangeFlag roundId={row.round.id} change={row.change} />}
+          <Button label="Move to another company" variant="secondary" onPress={() => onMove(row.round.id)} />
           {row.round.source === 'manual' && (
             <Button label="Edit" variant="secondary" onPress={() => router.push({ pathname: '/add', params: { roundId: row.round.id } })} />
           )}
@@ -285,6 +393,17 @@ const styles = StyleSheet.create({
   backText: { ...type.section, color: colors.accent },
   title: { ...type.title, color: colors.text },
   subtitle: { ...type.body, color: colors.textMuted },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  menuBtn: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
+  menuDots: { fontSize: 28, color: colors.accent },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: space.lg },
+  sheet: { backgroundColor: colors.surface, borderRadius: radius.md, padding: space.lg, gap: space.sm },
+  pickerSheet: { maxHeight: '80%' },
+  pickerList: { flexGrow: 0 },
+  pickRow: { minHeight: MIN_TOUCH, justifyContent: 'center', paddingHorizontal: space.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, marginBottom: space.xs },
+  pickRowOn: { borderColor: colors.accent, borderWidth: 2 },
+  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: space.md, ...type.body, color: colors.text },
+  error: { ...type.body, color: '#B42318' },
   bubbleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   tiles: { flexDirection: 'row', gap: space.md },
   card: { gap: space.sm },

@@ -3,6 +3,7 @@ import { emitChange } from '../bus';
 import { roundNumber, type Target } from '../../domain/rounds';
 import type { Channel, Result, Round } from '../../types/entities';
 import { toRound, type RoundRow } from './bundles';
+import { cancelReminder, ensureNotificationPermission, syncCompanyReminders, syncReminder } from '../../services/notifications';
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8); // local-only ids
 
@@ -41,6 +42,46 @@ export async function reopenCompany(companyId: string, now = Date.now()) {
   const db = await getDb();
   await db.runAsync("UPDATE company SET status='active', rejected_reason=NULL, rejected_after_round=NULL, rejected_at=NULL, updated_at=? WHERE id=?", [now, companyId]);
   emitChange();
+}
+
+/** Move one round: its result and pings go with it; notes are on the round row already. */
+export async function moveRound(roundId: string, toCompanyId: string) {
+  const db = await getDb();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('UPDATE round SET company_id=? WHERE id=?', [toCompanyId, roundId]);
+    await db.runAsync("UPDATE ping SET company_id=? WHERE target_type='round' AND target_id=?", [toCompanyId, roundId]);
+  });
+  emitChange();
+}
+
+/** Merge (decision 12): everything moves to the target, the source is deleted. */
+export async function mergeCompanies(sourceId: string, targetId: string) {
+  const db = await getDb();
+  await db.withTransactionAsync(async () => {
+    for (const t of ['round', 'recruiter_call', 'ping'])
+      await db.runAsync(`UPDATE ${t} SET company_id=? WHERE company_id=?`, [targetId, sourceId]);  // t is a constant
+    await db.runAsync('UPDATE OR IGNORE alias SET company_id=? WHERE company_id=?', [targetId, sourceId]);
+    await db.runAsync('UPDATE OR IGNORE recruiter SET company_id=? WHERE company_id=?', [targetId, sourceId]); // target's own wins
+    await db.runAsync(
+      `UPDATE company SET
+         notes = NULLIF(trim(COALESCE(notes,'') || char(10) || COALESCE((SELECT notes FROM company WHERE id=?),'')), ''),
+         jd_text = COALESCE(jd_text, (SELECT jd_text FROM company WHERE id=?))
+       WHERE id=?`, [sourceId, sourceId, targetId]);
+    await db.runAsync('DELETE FROM company WHERE id=?', [sourceId]);   // cascades leftover alias/recruiter rows
+  });
+  emitChange();
+}
+
+/** Rename. Names are unique case-insensitively (D10), so a clash must be a merge instead. */
+export async function renameCompany(companyId: string, name: string, now = Date.now()) {
+  const n = name.trim();
+  if (n.length < 1 || n.length > 200) throw new Error('Enter a name of 1 to 200 characters.');
+  const db = await getDb();
+  const clash = await db.getFirstAsync<{ id: string }>('SELECT id FROM company WHERE lower(name)=lower(?) AND id<>? LIMIT 1', [n, companyId]);
+  if (clash) throw new Error('Another company already has this name. Use Merge instead.');
+  await db.runAsync('UPDATE company SET name=?, updated_at=? WHERE id=?', [n, now, companyId]);
+  emitChange();
+  await syncCompanyReminders(companyId);   // notification text carries the company name; never throws on its own
 }
 
 /** Notes card: saved on blur. Empty text is stored as NULL. */
@@ -86,14 +127,18 @@ async function findOrCreateCompany(db: Db, f: NewCompanyFields, now: number): Pr
 export async function addRound(c: NewCompanyFields, r: RoundFields, now = Date.now()): Promise<string> {
   const db = await getDb();
   let companyId = '';
+  const roundId = uid();
   await db.withTransactionAsync(async () => {
     companyId = await findOrCreateCompany(db, c, now);
     await db.runAsync(
       `INSERT INTO round (id, company_id, source, type, label, starts_at, order_at, location_or_link, contact_name, contact_phone, notes, created_at, updated_at)
        VALUES (?,?,'manual',?,?,?,?,?,?,?,?,?,?)`,
-      [uid(), companyId, r.type, r.label, r.startsAt, r.startsAt, nul(r.locationOrLink), nul(r.contactName), nul(r.contactPhone), nul(r.notes), now, now]);
+      [roundId, companyId, r.type, r.label, r.startsAt, r.startsAt, nul(r.locationOrLink), nul(r.contactName), nul(r.contactPhone), nul(r.notes), now, now]);
   });
   emitChange();
+  // First manual round asks for notification permission (the OS only prompts while undecided). Failures never block the save.
+  try { await ensureNotificationPermission(true); } catch (e) { console.warn('notification permission', e); }
+  await syncReminder(roundId, now);
   return companyId;
 }
 
@@ -120,11 +165,14 @@ export async function updateRound(roundId: string, r: RoundFields, now = Date.no
      WHERE id=? AND source='manual'`,
     [r.type, r.label, r.startsAt, r.startsAt, nul(r.locationOrLink), nul(r.contactName), nul(r.contactPhone), nul(r.notes), now, roundId]);
   emitChange();
+  await syncReminder(roundId, now);
 }
 
 /** Manual rounds only. The ping_del_round trigger removes the round's pings. */
 export async function deleteRound(roundId: string) {
   const db = await getDb();
+  // Cancel first: deleting the round cascades the notification_map row away.
+  try { await cancelReminder(roundId); } catch (e) { console.warn('reminder not cancelled', e); }
   await db.runAsync("DELETE FROM round WHERE id=? AND source='manual'", [roundId]);
   emitChange();
 }

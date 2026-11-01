@@ -24,6 +24,7 @@
       "expo-router",
       "expo-dev-client",
       "expo-calendar",
+      "expo-notifications",
       "expo-sqlite"
     ]
   }
