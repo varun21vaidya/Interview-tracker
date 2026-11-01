@@ -2,6 +2,7 @@ import type { Bundle, Round } from '../types/entities';
 import { counted, isDone, roundNumber, waitingTarget, type Target } from './rounds';
 import { pendingBubble, pingBubble, pingDates, rejectedLabel, type Bubble } from './pings';
 import { shortDate } from './status';
+import { changeOf, type ChangeModel } from './syncRules';
 import { daysBetween, plural } from './time';
 
 const MODE: Record<Round['type'], string> = { walk_in: 'Walk-in', offline: 'In person', phone: 'Phone', online: 'Online' };
@@ -13,6 +14,7 @@ export interface RoundRowModel {
   title: string;              // "Round 2 · Technical", or just the label when unnumbered
   detail: string;             // "20 Oct · Online", plus the short note
   bubble: Bubble;
+  change?: ChangeModel;       // moved or cancelled in the calendar: Accept / Keep / Reopen show under the row
   actions: boolean;           // Mark approved / rejected / didn't happen go under this row
 }
 
@@ -55,6 +57,7 @@ export function companyDetail(b: Bundle, now: number): CompanyDetailModel {
       title: number === null ? round.label : `Round ${number} · ${round.label}`,
       detail: round.note ? `${mode} · ${round.note}` : mode,
       bubble: resultBubble(round, now),
+      ...(changeOf(round) && { change: changeOf(round) }),
       actions: !rejected && target?.type === 'round' && target.id === round.id,
     };
   });

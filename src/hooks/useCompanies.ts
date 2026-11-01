@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { loadBundles } from '../db/repos/bundles';
+import { requestSync } from '../services/calendarSync';
 import { matchesQuery, waitingAge } from '../domain/status';
 import type { Bundle } from '../types/entities';
 import { useData } from './useData';
@@ -13,7 +14,8 @@ export function useCompanies() {
 
   // Every load yields a new array: that is the signal that a pull-to-refresh finished.
   useEffect(() => { setNow(Date.now()); setRefreshing(false); }, [data, error]);
-  const refresh = useCallback(() => { setRefreshing(true); reload(); }, [reload]);
+  // Pull-to-refresh re-reads the calendar first, then reloads the list (the spinner stops when the reload lands).
+  const refresh = useCallback(() => { setRefreshing(true); requestSync({ force: true }).catch(() => null).finally(reload); }, [reload]);
 
   const { active, rejected, total } = useMemo(() => {
     const all = (data ?? []).filter(b => matchesQuery(b, query));

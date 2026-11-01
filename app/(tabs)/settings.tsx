@@ -10,6 +10,7 @@ import { updatedText } from '../../src/domain/home';
 import { getCalendarAccess, requestCalendarAccess, type CalendarAccess } from '../../src/services/permissions';
 import { Chip } from '../../src/components/Chip';
 import { useData } from '../../src/hooks/useData';
+import { useSync } from '../../src/hooks/useSync';
 import { Card } from '../../src/components/Card';
 import { colors, radius, space, type } from '../../src/theme/tokens';
 
@@ -51,6 +52,7 @@ function CalendarsCard() {
   const [access, setAccess] = useState<CalendarAccess | null>(null);
   const [rows, setRows] = useState<CalRow[]>([]);
   const [error, setError] = useState('');
+  const sync = useSync();
 
   const loadRows = useCallback(async () => {
     try {
@@ -106,6 +108,8 @@ function CalendarsCard() {
             <Text style={styles.warn}>Never tick an employer calendar: colleagues or admins may see it.</Text>
           ) : null}
           <Text style={styles.help}>Read-only. This app never changes your calendar.</Text>
+          <Button title={sync.syncing ? 'Refreshing…' : 'Refresh now'} onPress={() => { void sync.run(); }} disabled={sync.syncing} />
+          {sync.message ? <Text style={styles.warn}>{sync.message}</Text> : null}
         </>
       ) : access === null ? null : (
         <View style={styles.access}>

@@ -45,14 +45,21 @@ export async function loadReviewScreen(eventId: string) {
   return { item: row ? toItem(row) : null, bundles };
 }
 
-/** Sync (next phase) calls this for events that need a decision. An item already decided or dismissed is not reopened. */
-export async function upsertReview(eventId: string, ranked: string[], suggestedName: string | undefined, now: number) {
-  const db = await getDb();
+/**
+ * Queues an event for a decision. A dismissed item comes back (sync only calls this for an event that is new again,
+ * which for an ignored one means its time or organizer changed, D11). A decided item is never reopened.
+ * No change event: sync emits once at the end.
+ */
+export async function writeReview(db: Db, eventId: string, ranked: string[], suggestedName: string | undefined, now: number) {
   await db.runAsync(
     `INSERT INTO review_item (event_id, status, ranked_company_ids, suggested_name, created_at) VALUES (?,'open',?,?,?)
-     ON CONFLICT(event_id) DO UPDATE SET ranked_company_ids=excluded.ranked_company_ids, suggested_name=excluded.suggested_name
-       WHERE review_item.status='open'`,
+     ON CONFLICT(event_id) DO UPDATE SET status='open', ranked_company_ids=excluded.ranked_company_ids, suggested_name=excluded.suggested_name
+       WHERE review_item.status IN ('open','dismissed')`,
     [eventId, JSON.stringify(ranked), suggestedName ?? null, now]);
+}
+
+export async function upsertReview(eventId: string, ranked: string[], suggestedName: string | undefined, now: number) {
+  await writeReview(await getDb(), eventId, ranked, suggestedName, now);
   emitChange();
 }
 

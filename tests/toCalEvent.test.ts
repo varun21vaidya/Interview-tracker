@@ -1,5 +1,5 @@
 import { keywordMatcher } from '../src/domain/extract';
-import { toCalEvent } from '../src/services/calendarSync';
+import { toCalEvent } from '../src/domain/toCalEvent';
 
 jest.mock('expo-calendar', () => ({}));
 

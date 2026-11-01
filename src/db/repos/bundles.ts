@@ -11,7 +11,7 @@ interface RecruiterRow { company_id: string; name: N<string>; phone: N<string>; 
 export interface RoundRow {
   id: string; company_id: string; source: Round['source']; calendar_event_id: N<string>;
   type: Round['type']; label: string; starts_at: number; ends_at: N<number>; order_at: number; location_or_link: N<string>;
-  result: Round['result']; change_flag: N<'moved' | 'cancelled'>; auto_added_at: N<number>; notes: N<string>;
+  result: Round['result']; change_flag: N<'moved' | 'cancelled'>; pending_starts_at: N<number>; auto_added_at: N<number>; notes: N<string>;
 }
 interface CallRow { id: string; company_id: string; call_at: number; recruiter_name: N<string>; said: N<string> }
 interface PingRow {
@@ -32,7 +32,7 @@ const toRecruiter = (r: RecruiterRow): Recruiter => ({
 export const toRound = (r: RoundRow): Round => ({
   id: r.id, companyId: r.company_id, source: r.source, calendarEventId: u(r.calendar_event_id),
   type: r.type, label: r.label, startsAt: r.starts_at, endsAt: u(r.ends_at), orderAt: r.order_at, locationOrLink: u(r.location_or_link),
-  result: r.result, changeFlag: u(r.change_flag), autoAddedAt: u(r.auto_added_at), note: u(r.notes),
+  result: r.result, changeFlag: u(r.change_flag), pendingStartsAt: u(r.pending_starts_at), autoAddedAt: u(r.auto_added_at), note: u(r.notes),
 });
 const toCall = (r: CallRow): RecruiterCall => ({
   id: r.id, companyId: r.company_id, callAt: r.call_at, recruiterName: u(r.recruiter_name), said: u(r.said),

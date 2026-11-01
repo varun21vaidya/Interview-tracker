@@ -7,9 +7,10 @@ interface Row {
   organizer_email: string | null; meeting_link: string | null; phone: string | null;
 }
 
-/** D-E: there is no description column. Only the extracted link and phone are cached. */
-export async function upsertEvent(ev: CalEvent, now: number) {
-  const db = await getDb();
+type Db = Awaited<ReturnType<typeof getDb>>;
+
+/** D-E: there is no description column. Only the extracted link and phone are cached. No change event: callers in a transaction emit once. */
+export async function writeEvent(db: Db, ev: CalEvent, now: number) {
   await db.runAsync(
     `INSERT INTO calendar_event (event_id, calendar_id, title, starts_at, ends_at, organizer_email, meeting_link, phone, last_seen_at)
      VALUES (?,?,?,?,?,?,?,?,?)
@@ -19,6 +20,10 @@ export async function upsertEvent(ev: CalEvent, now: number) {
     [ev.eventId, ev.calendarId, ev.title, ev.startsAt, ev.endsAt ?? null, ev.organizerEmail ?? null,
       ev.meetingLink ?? null, ev.phone ?? null, now],
   );
+}
+
+export async function upsertEvent(ev: CalEvent, now: number) {
+  await writeEvent(await getDb(), ev, now);
   emitChange();
 }
 

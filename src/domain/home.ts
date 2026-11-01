@@ -4,6 +4,7 @@ import { resultBubble } from './detail';
 import { counted, isDone, roundNumber, waitingTarget, type Target } from './rounds';
 import { pendingBubble, pingBubble, type Bubble } from './pings';
 import { shortDate } from './status';
+import { needsAttention } from './syncRules';
 
 const lastDone = (rs: Round[], now: number) =>
   rs.filter(r => isDone(r, now)).sort((a, b) => b.startsAt - a.startsAt)[0];
@@ -29,7 +30,7 @@ export function buildHome(bundles: Bundle[], openReviews: number, now: number) {
     .sort((x, y) => y.round.startsAt - x.round.startsAt)
     .slice(0, 5);                                        // ASSUMPTION: 5 cards
 
-  const changed = active.reduce((n, b) => n + b.rounds.filter(r => r.changeFlag).length, 0);
+  const changed = active.reduce((n, b) => n + b.rounds.filter(needsAttention).length, 0);
   return { next: upcoming[0], upcoming: upcoming.slice(1), waiting, previous, openReviews, changed };
 }
 

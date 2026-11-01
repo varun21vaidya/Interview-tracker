@@ -9,13 +9,18 @@ import { FLOATING_PADDING, FloatingAdd } from '../../src/components/FloatingAdd'
 import { NextCard } from '../../src/components/NextCard';
 import { PreviousCard, WaitingCard } from '../../src/components/WaitingCard';
 import { markPinged } from '../../src/db/repos/actions';
+import { undoAutoAdd } from '../../src/db/repos/sync';
 import { dateLine, type WaitingModel } from '../../src/domain/home';
+import { bannerText } from '../../src/domain/syncRules';
 import { useHome } from '../../src/hooks/useHome';
+import { useSync } from '../../src/hooks/useSync';
 import { colors, space, type } from '../../src/theme/tokens';
 
 export default function Home() {
   const router = useRouter();
   const { view, now, lastSync, error, refreshing, refresh } = useHome();
+  const sync = useSync({ auto: true });          // app open and return to foreground, debounced to once a minute
+  const onRefresh = () => { refresh(); void sync.run(); };
 
   const openCompany = (id: string) => router.push({ pathname: '/company/[id]', params: { id } });
   const addInterview = () => router.push('/add');
@@ -23,23 +28,29 @@ export default function Home() {
   const openEmail = (_m: WaitingModel) => {};
   const pinged = (m: WaitingModel) => { markPinged(m.companyId, m.target, 'mark'); };
   const openReviews = () => router.push('/review');
+  // Change: take the round back out (like Undo) and open Which company? for the same event.
+  const change = async (roundId: string) => {
+    const eventId = await undoAutoAdd(roundId);
+    if (eventId) router.push({ pathname: '/review/[eventId]', params: { eventId } });
+  };
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <Tabs.Screen options={{ headerShown: false }} />
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: FLOATING_PADDING }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} colors={[colors.accent]} />}
+        refreshControl={<RefreshControl refreshing={refreshing || sync.syncing} onRefresh={onRefresh} colors={[colors.accent]} />}
       >
         <View style={styles.heading}>
           <View style={styles.grow}>
             <Text accessibilityRole="header" style={styles.title}>Next interview</Text>
             <Text style={styles.date}>{dateLine(now, lastSync)}</Text>
           </View>
-          <Button label="Refresh" variant="secondary" onPress={refresh} />
+          <Button label="Refresh" variant="secondary" onPress={onRefresh} disabled={sync.syncing} />
         </View>
 
         {error && <Text style={styles.empty}>Could not load your interviews.</Text>}
+        {!!sync.message && <Text accessibilityLiveRegion="polite" style={styles.syncNote}>{sync.message}</Text>}
 
         {view && (
           <>
@@ -54,7 +65,18 @@ export default function Home() {
               {view.changed > 0 && (
                 <Banner tone="amber" text={`${view.changed} ${view.changed === 1 ? 'round was' : 'rounds were'} moved or cancelled.`} />
               )}
-              {/* Blue "New interview found" banner: placeholder until the calendar sync phase supplies the event. */}
+              {view.added.slice(0, 3).map(a => (
+                <Banner
+                  key={a.roundId}
+                  tone="blue"
+                  text={bannerText(a)}
+                  onPress={() => openCompany(a.companyId)}
+                  actions={[
+                    { label: 'Change', onPress: () => change(a.roundId) },
+                    { label: 'Undo', onPress: () => { void undoAutoAdd(a.roundId); } },
+                  ]}
+                />
+              ))}
             </View>
 
             {view.empty ? (
@@ -128,6 +150,7 @@ const styles = StyleSheet.create({
   stack: { gap: space.md },
   laterName: { ...type.name, color: colors.text },
   laterLine: { ...type.body, color: colors.textMuted },
+  syncNote: { ...type.body, color: colors.textMuted, marginBottom: space.sm },
   empty: { ...type.body, color: colors.textMuted, textAlign: 'center', marginTop: space.xl },
   emptyTitle: { ...type.name, color: colors.text, marginBottom: space.xs },
   emptyBody: { ...type.body, color: colors.textMuted },

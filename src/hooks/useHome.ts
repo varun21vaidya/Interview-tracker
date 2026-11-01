@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppState } from 'react-native';
 import { loadHomeData } from '../db/repos/home';
 import { buildHome, laterModels, nextModel, previousModels, waitingModels } from '../domain/home';
+import { autoAddedBanners } from '../domain/syncRules';
 import { useData } from './useData';
 
 /** Current time, refreshed every minute and when the app returns to the foreground. */
@@ -35,6 +36,7 @@ export function useHome() {
       waiting: waitingModels(home.waiting, now),
       previous: previousModels(home.previous, now),
       openReviews: home.openReviews,
+      added: autoAddedBanners(data.autoAdded, now),
       changed: home.changed,
       empty: !home.next && home.waiting.length === 0 && home.previous.length === 0,
     };

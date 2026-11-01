@@ -9,6 +9,7 @@ import { Card } from '../../../src/components/Card';
 import { RoundRow } from '../../../src/components/RoundRow';
 import { StatTile } from '../../../src/components/StatTile';
 import { markPinged, notMovingForward, reopenCompany, saveNotes, setResult } from '../../../src/db/repos/actions';
+import { acceptCancel, acceptMove, keepRound, reopenRound } from '../../../src/db/repos/sync';
 import { firstName, telUri } from '../../../src/domain/contact';
 import { agoText, modeLabel, type CompanyDetailModel } from '../../../src/domain/detail';
 import { defaultTemplate } from '../../../src/domain/email';
@@ -115,6 +116,7 @@ function RoundsCard({ model }: { model: CompanyDetailModel }) {
       <Text style={styles.cardTitle}>Rounds</Text>
       {model.rows.map(row => (
         <RoundRow key={row.round.id} row={row}>
+          {row.change && <ChangeFlag roundId={row.round.id} change={row.change} />}
           {row.round.source === 'manual' && (
             <Button label="Edit" variant="secondary" onPress={() => router.push({ pathname: '/add', params: { roundId: row.round.id } })} />
           )}
@@ -133,6 +135,27 @@ function RoundsCard({ model }: { model: CompanyDetailModel }) {
         </RoundRow>
       ))}
     </Card>
+  );
+}
+
+/** Moved or cancelled in the calendar: the round is never changed silently. */
+function ChangeFlag({ roundId, change }: { roundId: string; change: NonNullable<CompanyDetailModel['rows'][number]['change']> }) {
+  return (
+    <View style={styles.flag}>
+      <Text style={styles.flagText}>{change.text}</Text>
+      <View style={styles.pair}>
+        {change.kind === 'cancelled' && change.acknowledged ? (
+          <View style={styles.flex}><Button label="Reopen" onPress={() => reopenRound(roundId)} /></View>
+        ) : (
+          <>
+            <View style={styles.flex}>
+              <Button label="Accept" onPress={() => (change.kind === 'moved' ? acceptMove(roundId) : acceptCancel(roundId))} />
+            </View>
+            <View style={styles.flex}><Button label="Keep" variant="secondary" onPress={() => keepRound(roundId)} /></View>
+          </>
+        )}
+      </View>
+    </View>
   );
 }
 
@@ -278,6 +301,8 @@ const styles = StyleSheet.create({
     minHeight: 120, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
     padding: space.md, ...type.body, color: colors.text,
   },
+  flag: { gap: space.sm, backgroundColor: '#FDEBC8', borderRadius: radius.md, padding: space.md, marginTop: space.xs },
+  flagText: { ...type.body, color: '#7A4A00', fontWeight: '600' },
   danger: {
     minHeight: MIN_TOUCH, minWidth: MIN_TOUCH, paddingHorizontal: space.lg, borderRadius: radius.md,
     alignItems: 'center', justifyContent: 'center', backgroundColor: '#B42318',

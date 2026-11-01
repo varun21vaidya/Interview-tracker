@@ -14,6 +14,11 @@ export async function setSetting(key: string, value: string | number) {
   emitChange();
 }
 
+/** Same write without the change event, for use inside a larger transaction. */
+export async function writeSetting(db: Awaited<ReturnType<typeof getDb>>, key: string, value: string | number) {
+  await db.runAsync('INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', [key, String(value)]);
+}
+
 export const SIGNATURE_KEY = 'signature';
 
 /** Saved signature, or the default until the user edits it. */
