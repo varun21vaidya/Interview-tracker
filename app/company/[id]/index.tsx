@@ -6,6 +6,7 @@ import * as Clipboard from 'expo-clipboard';
 import { Bubble } from '../../../src/components/Bubble';
 import { Button } from '../../../src/components/Button';
 import { Card } from '../../../src/components/Card';
+import { JdCard } from '../../../src/components/JdCard';
 import { RoundRow } from '../../../src/components/RoundRow';
 import { StatTile } from '../../../src/components/StatTile';
 import { markPinged, notMovingForward, reopenCompany, saveNotes, setResult } from '../../../src/db/repos/actions';
@@ -90,10 +91,11 @@ export default function CompanyDetail() {
 
         <RecruiterCard name={contactName} phone={phone} email={recruiter?.email} />
 
-        <Card style={styles.card}>
-          <Text style={styles.cardTitle}>Job description</Text>
-          <Text style={styles.muted}>Coming soon.</Text>
-        </Card>
+        <JdCard
+          preview={company.jdPreview} words={company.jdWords} link={company.jdLink}
+          onEdit={() => router.push({ pathname: '/company/[id]/jd-edit', params: { id: company.id } })}
+          onView={() => router.push({ pathname: '/company/[id]/jd', params: { id: company.id } })}
+        />
 
         <NotesCard key={company.id} companyId={company.id} initial={company.notes ?? ''} />
       </ScrollView>
