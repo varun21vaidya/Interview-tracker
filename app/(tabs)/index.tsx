@@ -22,8 +22,7 @@ export default function Home() {
   // Email screen (3.6) is out of scope for this phase: stubbed. `model.template` says which text it will open with.
   const openEmail = (_m: WaitingModel) => {};
   const pinged = (m: WaitingModel) => { markPinged(m.companyId, m.target, 'mark'); };
-  // Which company? (3.5) is out of scope for this phase.
-  const openReviews = () => {};
+  const openReviews = () => router.push('/review');
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>

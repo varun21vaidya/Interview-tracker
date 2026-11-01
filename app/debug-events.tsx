@@ -1,8 +1,10 @@
 // Phase 7 debug screen. Temporary: delete once sync (next phase) shows real events.
 // Reads ONLY the calendars ticked in Settings. Does not set last_sync, so the window stays "first read" (14 days back).
 import { useState } from 'react';
-import { ActivityIndicator, Button, FlatList, Linking, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Button, FlatList, Linking, StyleSheet, Text, View } from 'react-native';
 import { storedEvents, upsertEvent } from '../src/db/repos/calendarEvents';
+import { matchContext, upsertReview } from '../src/db/repos/review';
+import { matchEvent } from '../src/domain/matching';
 import { getCalendarIds, getKeywords, getLastSync } from '../src/db/repos/settings';
 import { readEvents } from '../src/services/calendarSync';
 import { getCalendarAccess, requestCalendarAccess } from '../src/services/permissions';
@@ -48,6 +50,14 @@ function DebugEventsScreen() {
     }
   }
 
+  /** Dev stand-in for sync: runs matchEvent and queues the event if it needs a decision. */
+  async function queue(ev: CalEvent) {
+    const m = matchEvent(ev, await matchContext());
+    if (m.decision === 'attach') { Alert.alert('Would auto-attach', `company ${m.companyId}`); return; }
+    await upsertReview(ev.eventId, m.ranked, m.suggestedName, Date.now());
+    Alert.alert('Queued for review', 'Open Home to see the amber banner.');
+  }
+
   return (
     <View style={styles.container}>
       <Button title="Read ticked calendars" onPress={load} />
@@ -76,6 +86,7 @@ function DebugEventsScreen() {
               <Text style={styles.sub}>link: {item.meetingLink ?? '—'}</Text>
               <Text style={styles.sub}>phone: {item.phone ?? '—'}</Text>
               <Text style={styles.sub}>organizer: {item.organizerEmail ?? '—'}</Text>
+              <Button title="Match, then queue for review" onPress={() => queue(item)} />
             </View>
           )}
         />
