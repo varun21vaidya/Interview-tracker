@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Button, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { Link } from 'expo-router';
 import { getCalendars } from 'expo-calendar';
 import { loadSampleData } from '../../src/db/seed';
@@ -10,6 +10,7 @@ import { updatedText } from '../../src/domain/home';
 import { countsText, UNENCRYPTED_NOTE } from '../../src/domain/backup';
 import { exportBackup, exportSummary, pickBackup, restore } from '../../src/services/backup';
 import { getCalendarAccess, requestCalendarAccess, type CalendarAccess } from '../../src/services/permissions';
+import { Button } from '../../src/components/Button';
 import { Chip } from '../../src/components/Chip';
 import { useData } from '../../src/hooks/useData';
 import { useSync } from '../../src/hooks/useSync';
@@ -21,7 +22,6 @@ export default function Settings() {
 
   return (
     <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-      <Text>Settings</Text>
       <CalendarsCard />
       <KeywordsCard />
       <SignatureCard />
@@ -30,7 +30,7 @@ export default function Settings() {
         <View style={styles.dev}>
           <Link href="/debug-events">Debug: read events (temporary)</Link>
           <Button
-            title="Load sample data"
+            label="Load sample data"
             onPress={() => {
               setStatus('Loading…');
               loadSampleData().then(() => setStatus('Sample data loaded'), e => setStatus(`Failed: ${e.message}`));
@@ -111,7 +111,7 @@ function CalendarsCard() {
             <Text style={styles.warn}>Never tick an employer calendar: colleagues or admins may see it.</Text>
           ) : null}
           <Text style={styles.help}>Read-only. This app never changes your calendar.</Text>
-          <Button title={sync.syncing ? 'Refreshing…' : 'Refresh now'} onPress={() => { void sync.run(); }} disabled={sync.syncing} />
+          <Button variant="secondary" label={sync.syncing ? 'Refreshing…' : 'Refresh now'} onPress={() => { void sync.run(); }} disabled={sync.syncing} />
           {sync.message ? <Text style={styles.warn}>{sync.message}</Text> : null}
         </>
       ) : access === null ? null : (
@@ -119,8 +119,8 @@ function CalendarsCard() {
           <Text style={styles.calTitle}>Calendar access is needed</Text>
           <Text style={styles.help}>Allow read-only access to list your calendars and pick the job-search one.</Text>
           {access === 'ask'
-            ? <Button title="Allow calendar access" onPress={allow} />
-            : <Button title="Open app settings" onPress={() => Linking.openSettings()} />}
+            ? <Button label="Allow calendar access" onPress={allow} />
+            : <Button label="Open app settings" onPress={() => Linking.openSettings()} />}
         </View>
       )}
       {error ? <Text style={styles.warn}>{error}</Text> : null}
@@ -239,9 +239,9 @@ Everything currently in the app will be replaced. This cannot be undone.`;
     <Card style={styles.card}>
       <Text style={styles.cardTitle}>Backup</Text>
       <Text style={styles.help}>Save or restore companies, rounds and notes as a file. This is the only protection if the phone is lost or reset.</Text>
-      <Button title="Export backup" onPress={() => run('Export', async () => { await exportBackup(); })} disabled={busy} />
-      <Button title="Share readable summary" onPress={() => run('Export', async () => { await exportSummary(); })} disabled={busy} />
-      <Button title="Import backup" onPress={importFile} disabled={busy} />
+      <Button label="Export backup" onPress={() => run('Export', async () => { await exportBackup(); })} disabled={busy} />
+      <Button variant="secondary" label="Share readable summary" onPress={() => run('Export', async () => { await exportSummary(); })} disabled={busy} />
+      <Button variant="secondary" label="Import backup" onPress={importFile} disabled={busy} />
       <Text style={styles.warn}>{UNENCRYPTED_NOTE}</Text>
       {message ? <Text style={styles.help}>{message}</Text> : null}
     </Card>
@@ -249,8 +249,8 @@ Everything currently in the app will be replaced. This cannot be undone.`;
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: space.lg },
-  dev: { marginTop: 24, gap: 8, alignItems: 'center' },
+  container: { flexGrow: 1, padding: space.lg, paddingBottom: space.xl },
+  dev: { marginTop: 24, gap: 8 },
   card: { alignSelf: 'stretch', gap: space.sm, marginTop: space.lg },
   cardTitle: { ...type.section, color: colors.text },
   input: {
