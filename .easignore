@@ -1,0 +1,66 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+# generated native folders
+/ios
+/android
+
+# planning docs (local only)
+prompt.md
+system_prompt.md
+spec_plan.md
+initial_plan.md
+architecture.md
+tip.md
+interview-tracker-part2-schema-and-core-code.md
+Phased plan and device checklist.md
+Interview Tracker Feature-by-Feature Build Prompts.md
+Interview Tracker – App Screens.pdf
+Interview_Tracker___App_Screens.html
+.taste-skill/
+
+# agent tooling and local planning files (not part of the app; symlinks break EAS on Windows)
+.agents/
+.claude/
+.kiro/
+.qwen/
+.zcode/
+skills-lock.json
+frontend-design_SKILL.md
+ui_redesign_plan.md
+.taste-skill/
