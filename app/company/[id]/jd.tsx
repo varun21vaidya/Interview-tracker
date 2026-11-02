@@ -1,14 +1,21 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Linking, Pressable, StyleSheet, Text, TextInput, View, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { FlatList, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
+import { BottomBar } from '../../../src/components/BottomBar';
 import { Button } from '../../../src/components/Button';
 import { Chip } from '../../../src/components/Chip';
+import { InlineError } from '../../../src/components/InlineError';
+import { Page } from '../../../src/components/Page';
+import { Screen } from '../../../src/components/Screen';
+import { ScreenHeader } from '../../../src/components/ScreenHeader';
+import { TextField } from '../../../src/components/TextField';
+import { IconButton } from '../../../src/components/IconButton';
 import { loadJd, type JdRecord } from '../../../src/db/repos/companies';
 import { formatWords, findMatches, jumpTargets, matchSegments, toBlocks, type Block } from '../../../src/domain/jd';
 import { useData } from '../../../src/hooks/useData';
-import { colors, MIN_TOUCH, radius, space, type } from '../../../src/theme/tokens';
+import { useLayout } from '../../../src/hooks/useLayout';
+import { colors, radius, space, type } from '../../../src/theme/tokens';
 import { safeHttps } from '../../../src/utils/links';
 
 export default function FullJd() {
@@ -19,29 +26,23 @@ export default function FullJd() {
   const back = () => (router.canGoBack() ? router.back() : router.replace('/companies'));
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <Stack.Screen options={{ headerShown: false }} />
+    <Screen>
       {data?.jd
         ? <Reader jd={data.jd} onBack={back} onEdit={() => router.push({ pathname: '/company/[id]/jd-edit', params: { id } })} />
         : (
-          <View style={styles.top}>
-            <BackLink onPress={back} />
-            {(error || data) && <Text style={styles.muted}>{error ? 'Could not load this description.' : 'This company no longer exists.'}</Text>}
-          </View>
+          <Page>
+            <ScreenHeader back={{ label: 'Company', onPress: back }} title="Job description" />
+            {(error || data) && <InlineError message={error ? 'Could not load this description.' : 'This company no longer exists.'} />}
+          </Page>
         )}
-    </SafeAreaView>
+    </Screen>
   );
 }
 
-function BackLink({ onPress }: { onPress: () => void }) {
-  return (
-    <Pressable accessibilityRole="link" accessibilityLabel="Back to company" onPress={onPress} style={styles.back}>
-      <Text style={styles.backText}>‹ Back</Text>
-    </Pressable>
-  );
-}
+const CARD_PAD = space.lg;
 
 function Reader({ jd, onBack, onEdit }: { jd: JdRecord; onBack: () => void; onEdit: () => void }) {
+  const { width, fontScale, gutter, contentWidth } = useLayout();
   const [query, setQuery] = useState('');
   const [copied, setCopied] = useState(false);
   const list = useRef<FlatList<Block>>(null);
@@ -53,9 +54,17 @@ function Reader({ jd, onBack, onEdit }: { jd: JdRecord; onBack: () => void; onEd
   const found = useMemo(() => findMatches(blocks, query), [blocks, query]);
   const href = safeHttps(jd.link);
 
+  // Rough height of a block that has not been rendered yet (17px type, 26px lines, about 8.2px per character).
+  const charsPerLine = Math.max(20, Math.floor((Math.min(width, contentWidth) - gutter * 2 - CARD_PAD * 2) / (8.2 * fontScale)));
+  const lineH = 26 * fontScale;
+  const estimateHeight = (b: Block) =>
+    (b.heading !== undefined ? 30 * fontScale : 0) + space.md
+    + b.body.split('\n').reduce((n, l) => n + Math.max(1, Math.ceil(l.length / charsPerLine)), 0) * lineH;
+
   // Heights of rendered blocks. Jumping uses these (estimates for blocks not rendered yet) instead of
   // VirtualizedList frame metrics, which are not reliable for rows of varying height.
-  const heights = useRef(new Map<string, number>());  const offsetOf = (index: number) => {
+  const heights = useRef(new Map<string, number>());
+  const offsetOf = (index: number) => {
     let y = CARD_PAD;
     for (let i = 0; i < index; i++) y += heights.current.get(blocks[i].id) ?? estimateHeight(blocks[i]);
     return y;
@@ -82,17 +91,15 @@ function Reader({ jd, onBack, onEdit }: { jd: JdRecord; onBack: () => void; onEd
 
   return (
     <>
-      <View style={styles.top}>
-        <BackLink onPress={onBack} />
-        <Text accessibilityRole="header" style={styles.title}>Job description</Text>
-        {!!sub && <Text style={styles.sub}>{sub}</Text>}
-        <TextInput
-          value={query} onChangeText={setQuery} placeholder="Find in description" placeholderTextColor={colors.textFaint}
-          accessibilityLabel="Find in description" maxLength={100} autoCorrect={false} autoCapitalize="none" returnKeyType="search"
-          style={styles.find}
+      <View style={[styles.top, { paddingHorizontal: gutter, width: contentWidth }]}>
+        <ScreenHeader back={{ label: 'Company', onPress: onBack }} title="Job description" subtitle={sub || undefined} />
+        <TextField
+          value={query} onChangeText={setQuery} placeholder="Find in description" accessibilityLabel="Find in description"
+          icon="search" maxLength={100} autoCorrect={false} autoCapitalize="none" returnKeyType="search"
+          trailing={query ? <IconButton icon="x" label="Clear find" onPress={() => setQuery('')} /> : undefined}
         />
         {query.trim() !== '' && (
-          <Text accessibilityLiveRegion="polite" style={styles.help}>
+          <Text accessibilityLiveRegion="polite" style={[type.small, { color: colors.muted }]}>
             {found.total === 0 ? 'No matches' : found.total === 1 ? '1 match' : `${found.total} matches`}
           </Text>
         )}
@@ -104,11 +111,13 @@ function Reader({ jd, onBack, onEdit }: { jd: JdRecord; onBack: () => void; onEd
       </View>
 
       {jd.text === '' ? (
-        <View style={styles.top}><Text style={styles.muted}>No description saved yet.</Text></View>
+        <View style={[styles.top, { paddingHorizontal: gutter, width: contentWidth }]}>
+          <Text style={[type.body, { color: colors.muted }]}>No description saved yet.</Text>
+        </View>
       ) : (
         <FlatList
           ref={list}
-          style={styles.card}
+          style={[styles.card, { marginHorizontal: gutter, width: contentWidth - gutter * 2 }]}
           contentContainerStyle={styles.cardContent}
           data={blocks}
           extraData={query}
@@ -117,15 +126,15 @@ function Reader({ jd, onBack, onEdit }: { jd: JdRecord; onBack: () => void; onEd
           keyboardShouldPersistTaps="handled"
           initialNumToRender={10}
           windowSize={7}
-          ListFooterComponent={<Text style={styles.footer}>Long descriptions scroll here. The company page shows a short preview only.</Text>}
+          ListFooterComponent={<Text style={[type.small, styles.footer]}>Long descriptions scroll here. The company page shows a short preview only.</Text>}
         />
       )}
 
-      <View style={styles.bar}>
-        <View style={styles.flex}><Button label={copied ? 'Copied' : 'Copy text'} variant="secondary" disabled={jd.text === ''} onPress={copy} /></View>
-        <View style={styles.flex}><Button label="Edit" variant="secondary" onPress={onEdit} /></View>
-        <View style={styles.flex}><Button label="Open posting" disabled={!href} onPress={() => href && Linking.openURL(href)} /></View>
-      </View>
+      <BottomBar stackAlways={width < 400}>
+        <Button label={copied ? 'Copied' : 'Copy text'} variant="secondary" icon="copy" disabled={jd.text === ''} onPress={copy} />
+        <Button label="Edit" variant="secondary" icon="edit-2" onPress={onEdit} />
+        <Button label="Open posting" icon="external-link" disabled={!href} onPress={() => href && Linking.openURL(href)} />
+      </BottomBar>
     </>
   );
 }
@@ -141,45 +150,18 @@ const Highlighted = memo(function Highlighted({ text, query, style }: { text: st
 const BlockView = memo(function BlockView({ block, query, onHeight }: { block: Block; query: string; onHeight: (h: number) => void }) {
   return (
     <View style={styles.block} onLayout={e => onHeight(e.nativeEvent.layout.height)}>
-      {block.heading !== undefined && <Highlighted text={block.heading} query={query} style={styles.heading} />}
-      {block.body !== '' && <Highlighted text={block.body} query={query} style={styles.body} />}
+      {block.heading !== undefined && <Highlighted text={block.heading} query={query} style={[type.heading, { color: colors.text }]} />}
+      {block.body !== '' && <Highlighted text={block.body} query={query} style={[type.reading, { color: colors.text }]} />}
     </View>
   );
 });
 
-const CARD_PAD = space.lg;
-/** Rough height of a block that has not been rendered yet (17px type, 26px lines, about 38 characters a line). */
-const estimateHeight = (b: Block) =>
-  (b.heading !== undefined ? 30 : 0) + space.md
-  + b.body.split('\n').reduce((n, l) => n + Math.max(1, Math.ceil(l.length / 38)), 0) * 26;
-
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
-  top: { paddingHorizontal: space.lg, gap: space.sm, paddingBottom: space.sm },
-  back: { minHeight: MIN_TOUCH, justifyContent: 'center', alignSelf: 'flex-start' },
-  backText: { ...type.section, color: colors.accent },
-  title: { ...type.title, color: colors.text },
-  sub: { ...type.body, color: colors.textMuted },
-  muted: { ...type.body, color: colors.textFaint },
-  help: { fontSize: 13, color: colors.textFaint },
-  find: {
-    minHeight: MIN_TOUCH, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surface,
-    paddingHorizontal: space.md, ...type.body, color: colors.text,
-  },
+  top: { alignSelf: 'center', gap: space.sm, paddingBottom: space.sm },
   chips: { gap: space.sm, paddingVertical: space.xs },
-  card: {
-    flex: 1, minHeight: 160, marginHorizontal: space.lg, backgroundColor: colors.surface, borderRadius: radius.md,
-    borderWidth: 1, borderColor: colors.border,
-  },
+  card: { flex: 1, minHeight: 160, alignSelf: 'center', backgroundColor: colors.surface, borderRadius: radius.card, marginBottom: space.sm },
   cardContent: { padding: CARD_PAD },
   block: { gap: space.xs, paddingBottom: space.md },
-  heading: { fontSize: 19, fontWeight: '700', color: colors.text },
-  body: { fontSize: 17, lineHeight: 26, color: colors.text },
-  hit: { backgroundColor: '#FFE08A', color: colors.text },
-  footer: { fontSize: 13, color: colors.textFaint, marginTop: space.md },
-  flex: { flex: 1, minWidth: 0 },
-  bar: {
-    flexDirection: 'row', gap: space.sm, padding: space.lg, marginTop: space.sm, backgroundColor: colors.surface,
-    borderTopWidth: 1, borderTopColor: colors.border,
-  },
+  hit: { backgroundColor: colors.hit, color: colors.text },
+  footer: { color: colors.muted, marginTop: space.md },
 });

@@ -1,26 +1,29 @@
 import { Pressable, StyleSheet, Text } from 'react-native';
+import { useLayout } from '../hooks/useLayout';
 import { colors, MIN_TOUCH, radius, space, type } from '../theme/tokens';
+import { Icon } from './Icon';
 
-/** Pill height; scroll areas under it pad by at least this plus the tab bar. */
+/** Pill height; scroll areas under it pad by this plus margins. The tab bar is already outside the scene. */
 export const PILL_HEIGHT = MIN_TOUCH + space.sm;
-export const TAB_BAR_HEIGHT = 64;
-/** Bottom padding for the scroll content: the pill, its margin, and the tab bar. */
-export const FLOATING_PADDING = PILL_HEIGHT + space.lg * 2 + TAB_BAR_HEIGHT;
+export const FLOATING_PADDING = PILL_HEIGHT + space.lg * 2;
 
 export function FloatingAdd({ onPress }: { onPress: () => void }) {
+  const { gutter } = useLayout();
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={styles.pill}>
-      <Text style={styles.label}>+ Add interview</Text>
+    <Pressable
+      accessibilityRole="button" accessibilityLabel="Add interview" onPress={onPress}
+      style={({ pressed }) => [styles.pill, { right: gutter, backgroundColor: pressed ? colors.accentPressed : colors.accent }]}
+    >
+      <Icon name="plus" size={20} color={colors.onAccent} />
+      <Text style={[type.button, { color: colors.onAccent }]}>Add interview</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   pill: {
-    position: 'absolute', right: space.lg, bottom: space.lg, height: PILL_HEIGHT, minWidth: MIN_TOUCH,
-    paddingHorizontal: space.xl, borderRadius: radius.pill, backgroundColor: colors.accent,
-    alignItems: 'center', justifyContent: 'center', elevation: 4,
-    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
+    position: 'absolute', bottom: space.lg, minHeight: PILL_HEIGHT, minWidth: MIN_TOUCH,
+    paddingHorizontal: space.xl, paddingVertical: space.sm, borderRadius: radius.pill,
+    flexDirection: 'row', gap: space.sm, alignItems: 'center', justifyContent: 'center', elevation: 4,
   },
-  label: { ...type.section, color: colors.onAccent },
 });

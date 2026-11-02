@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Fragment, useCallback, useEffect, useState } from 'react';
+import { Alert, Linking, Platform, StyleSheet, Switch, Text, View } from 'react-native';
 import { Link } from 'expo-router';
 import { getCalendars } from 'expo-calendar';
 import { loadSampleData } from '../../src/db/seed';
@@ -10,36 +10,44 @@ import { updatedText } from '../../src/domain/home';
 import { countsText, UNENCRYPTED_NOTE } from '../../src/domain/backup';
 import { exportBackup, exportSummary, pickBackup, restore } from '../../src/services/backup';
 import { getCalendarAccess, requestCalendarAccess, type CalendarAccess } from '../../src/services/permissions';
+import { ActionRow } from '../../src/components/ActionRow';
 import { Button } from '../../src/components/Button';
+import { Card } from '../../src/components/Card';
 import { Chip } from '../../src/components/Chip';
+import { Page } from '../../src/components/Page';
+import { Screen } from '../../src/components/Screen';
+import { TextField } from '../../src/components/TextField';
 import { useData } from '../../src/hooks/useData';
 import { useSync } from '../../src/hooks/useSync';
-import { Card } from '../../src/components/Card';
-import { colors, radius, space, type } from '../../src/theme/tokens';
+import { colors, MIN_TOUCH, space, type } from '../../src/theme/tokens';
 
 export default function Settings() {
   const [status, setStatus] = useState('');
 
   return (
-    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-      <CalendarsCard />
-      <KeywordsCard />
-      <SignatureCard />
-      <BackupCard />
-      {__DEV__ && (
-        <View style={styles.dev}>
-          <Link href="/debug-events">Debug: read events (temporary)</Link>
-          <Button
-            label="Load sample data"
-            onPress={() => {
-              setStatus('Loading…');
-              loadSampleData().then(() => setStatus('Sample data loaded'), e => setStatus(`Failed: ${e.message}`));
-            }}
-          />
-          {status ? <Text>{status}</Text> : null}
-        </View>
-      )}
-    </ScrollView>
+    <Screen edges={['top']} keyboard>
+      <Page>
+        <Text accessibilityRole="header" style={[type.title, styles.title]}>Settings</Text>
+        <CalendarsCard />
+        <KeywordsCard />
+        <SignatureCard />
+        <BackupCard />
+        {__DEV__ && (
+          <View style={styles.dev}>
+            <Text style={[type.small, { color: colors.muted }]}>Developer tools</Text>
+            <Link href="/debug-events" style={[type.body, { color: colors.accent }]}>Debug: read events (temporary)</Link>
+            <Button
+              label="Load sample data" variant="secondary"
+              onPress={() => {
+                setStatus('Loading…');
+                loadSampleData().then(() => setStatus('Sample data loaded'), e => setStatus(`Failed: ${e.message}`));
+              }}
+            />
+            {status ? <Text style={[type.body, { color: colors.text }]}>{status}</Text> : null}
+          </View>
+        )}
+      </Page>
+    </Screen>
   );
 }
 
@@ -89,41 +97,48 @@ function CalendarsCard() {
 
   return (
     <Card style={styles.card}>
-      <Text style={styles.cardTitle}>Calendars to read</Text>
-      {updated ? <Text style={styles.help}>Last {updated.charAt(0).toLowerCase() + updated.slice(1)}</Text> : null}
+      <Text accessibilityRole="header" style={[type.section, { color: colors.text }]}>Calendars to read</Text>
+      {updated ? <Text style={[type.small, { color: colors.muted }]}>Last {updated.charAt(0).toLowerCase() + updated.slice(1)}</Text> : null}
       {access === 'granted' ? (
         <>
-          {rows.length === 0 && !error ? <Text style={styles.help}>No calendars found on this phone.</Text> : null}
-          {rows.map(r => (
-            <View key={r.id} style={styles.calRow}>
-              <View style={styles.calText}>
-                <Text style={styles.calTitle}>{r.title}</Text>
-                {r.account ? <Text style={styles.help}>{r.account}</Text> : null}
-              </View>
-              <Switch
-                value={ticked.includes(r.id)}
-                onValueChange={() => toggle(r.id)}
-                accessibilityLabel={`Read ${r.title}`}
-              />
-            </View>
-          ))}
+          {rows.length === 0 && !error ? <Text style={[type.small, { color: colors.muted }]}>No calendars found on this phone.</Text> : null}
+          <View>
+            {rows.map((r, i) => (
+              <Fragment key={r.id}>
+                {i > 0 && <View style={styles.rule} />}
+                <View style={styles.calRow}>
+                  <View style={styles.calText}>
+                    <Text style={[type.bodyStrong, { color: colors.text }]}>{r.title}</Text>
+                    {r.account ? <Text style={[type.small, { color: colors.muted }]}>{r.account}</Text> : null}
+                  </View>
+                  <Switch
+                    value={ticked.includes(r.id)}
+                    onValueChange={() => toggle(r.id)}
+                    trackColor={{ false: colors.disabledBg, true: colors.accent }}
+                    thumbColor={colors.ground}
+                    accessibilityLabel={`Read ${r.title}`}
+                  />
+                </View>
+              </Fragment>
+            ))}
+          </View>
           {ticked.length > 0 ? (
-            <Text style={styles.warn}>Never tick an employer calendar: colleagues or admins may see it.</Text>
+            <Text style={[type.small, { color: colors.warning }]}>Never tick an employer calendar: colleagues or admins may see it.</Text>
           ) : null}
-          <Text style={styles.help}>Read-only. This app never changes your calendar.</Text>
-          <Button variant="secondary" label={sync.syncing ? 'Refreshing…' : 'Refresh now'} onPress={() => { void sync.run(); }} disabled={sync.syncing} />
-          {sync.message ? <Text style={styles.warn}>{sync.message}</Text> : null}
+          <Text style={[type.small, { color: colors.muted }]}>Read-only. This app never changes your calendar.</Text>
+          <Button variant="secondary" icon="refresh-cw" label={sync.syncing ? 'Refreshing…' : 'Refresh now'} onPress={() => { void sync.run(); }} disabled={sync.syncing} />
+          {sync.message ? <Text style={[type.small, { color: colors.warning }]}>{sync.message}</Text> : null}
         </>
       ) : access === null ? null : (
         <View style={styles.access}>
-          <Text style={styles.calTitle}>Calendar access is needed</Text>
-          <Text style={styles.help}>Allow read-only access to list your calendars and pick the job-search one.</Text>
+          <Text style={[type.bodyStrong, { color: colors.text }]}>Calendar access is needed</Text>
+          <Text style={[type.small, { color: colors.muted }]}>Allow read-only access to list your calendars and pick the job-search one.</Text>
           {access === 'ask'
             ? <Button label="Allow calendar access" onPress={allow} />
             : <Button label="Open app settings" onPress={() => Linking.openSettings()} />}
         </View>
       )}
-      {error ? <Text style={styles.warn}>{error}</Text> : null}
+      {error ? <Text style={[type.small, { color: colors.warning }]}>{error}</Text> : null}
     </Card>
   );
 }
@@ -144,28 +159,27 @@ function KeywordsCard() {
 
   return (
     <Card style={styles.card}>
-      <Text style={styles.cardTitle}>Interview keywords</Text>
+      <Text accessibilityRole="header" style={[type.section, { color: colors.text }]}>Interview keywords</Text>
       <View style={styles.chips}>
         {data.map(k => (
-          <Chip key={k} label={`${k}  ✕`} selected onPress={() => setKeywords(data.filter(x => x !== k))} />
+          <Chip key={k} label={k} icon="x" selected accessibilityLabel={`Remove ${k}`} onPress={() => setKeywords(data.filter(x => x !== k))} />
         ))}
       </View>
       <View style={styles.addRow}>
-        <TextInput
-          value={draft}
-          onChangeText={setDraft}
-          onSubmitEditing={add}
-          placeholder="+ Add keyword"
-          autoCapitalize="none"
-          returnKeyType="done"
-          accessibilityLabel="Add keyword"
-          style={[styles.input, styles.addInput]}
-        />
-        <Pressable accessibilityRole="button" onPress={add} style={styles.addBtn}>
-          <Text style={styles.addLabel}>Add</Text>
-        </Pressable>
+        <View style={styles.addInput}>
+          <TextField
+            value={draft}
+            onChangeText={setDraft}
+            onSubmitEditing={add}
+            placeholder="Add keyword"
+            autoCapitalize="none"
+            returnKeyType="done"
+            accessibilityLabel="Add keyword"
+          />
+        </View>
+        <Button label="Add" variant="secondary" onPress={add} />
       </View>
-      <Text style={styles.help}>Events whose title or description contains a keyword are kept. Tap a chip to remove it.</Text>
+      <Text style={[type.small, { color: colors.muted }]}>Events whose title or description contains a keyword are kept. Tap a chip to remove it.</Text>
     </Card>
   );
 }
@@ -173,8 +187,8 @@ function KeywordsCard() {
 function LoadFailed({ title }: { title: string }) {
   return (
     <Card style={styles.card}>
-      <Text style={styles.cardTitle}>{title}</Text>
-      <Text style={styles.warn}>Could not load this setting. Close and reopen the app.</Text>
+      <Text accessibilityRole="header" style={[type.section, { color: colors.text }]}>{title}</Text>
+      <Text style={[type.body, { color: colors.text }]}>Could not load this setting. Close and reopen the app.</Text>
     </Card>
   );
 }
@@ -189,19 +203,27 @@ function SignatureCard() {
 
 function SignatureEditor({ initial }: { initial: string }) {
   const [text, setText] = useState(initial);
+  const [note, setNote] = useState('');
+  const save = () => {
+    if (text === initial) return;
+    Promise.resolve(setSignature(text)).then(() => setNote('Saved'), () => setNote('Could not save your signature. Try again.'));
+  };
   return (
     <Card style={styles.card}>
-      <Text style={styles.cardTitle}>Email signature</Text>
-      <TextInput
-        value={text}
-        onChangeText={setText}
-        onBlur={() => { if (text !== initial) setSignature(text); }}
-        multiline
-        textAlignVertical="top"
-        accessibilityLabel="Email signature"
-        style={styles.input}
+      <TextField
+        label="Email signature" value={text}
+        onChangeText={t => { setText(t); setNote(''); }}
+        onBlur={save}
+        lines={4}
       />
-      <Text style={styles.help}>Added to the end of every follow-up email.</Text>
+      <Text style={[type.small, { color: colors.muted }]}>Added to the end of every follow-up email.</Text>
+      {!!text.trim() && (
+        <View style={styles.preview}>
+          <Text style={[type.small, { color: colors.muted }]}>Your emails end with:</Text>
+          <Text style={[type.small, { color: colors.muted }]}>{text}</Text>
+        </View>
+      )}
+      {!!note && <Text accessibilityLiveRegion="polite" style={[type.small, { color: colors.muted }]}>{note}</Text>}
     </Card>
   );
 }
@@ -237,35 +259,29 @@ Everything currently in the app will be replaced. This cannot be undone.`;
 
   return (
     <Card style={styles.card}>
-      <Text style={styles.cardTitle}>Backup</Text>
-      <Text style={styles.help}>Save or restore companies, rounds and notes as a file. This is the only protection if the phone is lost or reset.</Text>
-      <Button label="Export backup" onPress={() => run('Export', async () => { await exportBackup(); })} disabled={busy} />
-      <Button variant="secondary" label="Share readable summary" onPress={() => run('Export', async () => { await exportSummary(); })} disabled={busy} />
-      <Button variant="secondary" label="Import backup" onPress={importFile} disabled={busy} />
-      <Text style={styles.warn}>{UNENCRYPTED_NOTE}</Text>
-      {message ? <Text style={styles.help}>{message}</Text> : null}
+      <Text accessibilityRole="header" style={[type.section, { color: colors.text }]}>Backup</Text>
+      <Text style={[type.small, { color: colors.muted }]}>Save or restore companies, rounds and notes as a file. This is the only protection if the phone is lost or reset.</Text>
+      <ActionRow stackAlways>
+        <Button label="Export backup" icon="download" onPress={() => run('Export', async () => { await exportBackup(); })} disabled={busy} />
+        <Button variant="secondary" label="Share readable summary" icon="share-2" onPress={() => run('Export', async () => { await exportSummary(); })} disabled={busy} />
+        <Button variant="secondary" label="Import backup" icon="upload" onPress={importFile} disabled={busy} />
+      </ActionRow>
+      <Text style={[type.small, { color: colors.warning }]}>{UNENCRYPTED_NOTE}</Text>
+      {message ? <Text accessibilityLiveRegion="polite" style={[type.small, { color: colors.muted }]}>{message}</Text> : null}
     </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, padding: space.lg, paddingBottom: space.xl },
-  dev: { marginTop: 24, gap: 8 },
-  card: { alignSelf: 'stretch', gap: space.sm, marginTop: space.lg },
-  cardTitle: { ...type.section, color: colors.text },
-  input: {
-    minHeight: 100, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
-    padding: space.md, ...type.body, color: colors.text,
-  },
-  help: { fontSize: 13, color: colors.textFaint },
-  warn: { fontSize: 13, color: '#7A4A00' },
-  calRow: { flexDirection: 'row', alignItems: 'center', minHeight: 48, gap: space.md },
-  calText: { flex: 1 },
-  calTitle: { ...type.body, fontWeight: '600', color: colors.text },
+  title: { color: colors.text, marginTop: space.lg },
+  dev: { gap: space.sm, marginTop: space.md },
+  card: { gap: space.md },
+  rule: { height: 1, backgroundColor: colors.rule },
+  calRow: { flexDirection: 'row', alignItems: 'center', minHeight: MIN_TOUCH, gap: space.md, paddingVertical: space.xs },
+  calText: { flex: 1, minWidth: 0 },
   access: { gap: space.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   addRow: { flexDirection: 'row', gap: space.sm, alignItems: 'center' },
-  addInput: { flex: 1, minHeight: 48, paddingVertical: space.sm },
-  addBtn: { minHeight: 48, minWidth: 48, paddingHorizontal: space.lg, justifyContent: 'center' },
-  addLabel: { ...type.body, fontWeight: '700', color: colors.accent },
+  addInput: { flex: 1, minWidth: 0 },
+  preview: { gap: 2, borderLeftWidth: 2, borderLeftColor: colors.rule, paddingLeft: space.md },
 });

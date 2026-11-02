@@ -29,7 +29,9 @@
       "expo-calendar",
       "expo-notifications",
       "expo-sqlite",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-font",
+      "@react-native-community/datetimepicker"
     ]
   }
 }

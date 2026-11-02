@@ -1,13 +1,20 @@
 import { useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { StyleSheet, Text } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
+import { ActionRow } from '../../../src/components/ActionRow';
+import { BottomBar } from '../../../src/components/BottomBar';
 import { Button } from '../../../src/components/Button';
+import { InlineError } from '../../../src/components/InlineError';
+import { Page } from '../../../src/components/Page';
+import { Screen } from '../../../src/components/Screen';
+import { ScreenHeader } from '../../../src/components/ScreenHeader';
+import { TextField } from '../../../src/components/TextField';
 import { loadJd, saveJd, type JdRecord } from '../../../src/db/repos/companies';
 import { countWords, formatWords, MAX_LINK_CHARS, prepareJd, TEXT_ERROR } from '../../../src/domain/jd';
 import { useData } from '../../../src/hooks/useData';
-import { colors, MIN_TOUCH, radius, space, type } from '../../../src/theme/tokens';
+import { useLayout } from '../../../src/hooks/useLayout';
+import { colors, type } from '../../../src/theme/tokens';
 
 export default function EditJd() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -16,30 +23,22 @@ export default function EditJd() {
   const cancel = () => (router.canGoBack() ? router.back() : router.replace('/companies'));
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <Stack.Screen options={{ headerShown: false }} />
+    <Screen keyboard>
       {data?.jd
         // Loaded once: later reloads never overwrite what is being typed.
         ? <Editor key={id} id={id} jd={data.jd} onCancel={cancel} onSaved={cancel} />
         : (
-          <View style={styles.content}>
-            <CancelLink onPress={cancel} />
-            {(error || data) && <Text style={styles.muted}>{error ? 'Could not load this description.' : 'This company no longer exists.'}</Text>}
-          </View>
+          <Page>
+            <ScreenHeader cancel={cancel} title="Edit job description" />
+            {(error || data) && <InlineError message={error ? 'Could not load this description.' : 'This company no longer exists.'} />}
+          </Page>
         )}
-    </SafeAreaView>
-  );
-}
-
-function CancelLink({ onPress }: { onPress: () => void }) {
-  return (
-    <Pressable accessibilityRole="link" onPress={onPress} style={styles.cancel}>
-      <Text style={styles.cancelText}>Cancel</Text>
-    </Pressable>
+    </Screen>
   );
 }
 
 function Editor({ id, jd, onCancel, onSaved }: { id: string; jd: JdRecord; onCancel: () => void; onSaved: () => void }) {
+  const { height } = useLayout();
   const [text, setText] = useState(jd.text);
   const [link, setLink] = useState(jd.link ?? '');
   const [status, setStatus] = useState('');
@@ -73,66 +72,39 @@ function Editor({ id, jd, onCancel, onSaved }: { id: string; jd: JdRecord; onCan
   };
 
   const subtitle = [jd.name, jd.role].filter(Boolean).join(' · ');
+  const descHeight = Math.max(220, height * 0.42);
+  const descLines = Math.round((descHeight - 24) / 22);
 
   return (
     <>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
-        <CancelLink onPress={onCancel} />
-        <Text accessibilityRole="header" style={styles.title}>Edit job description</Text>
-        {!!subtitle && <Text style={styles.sub}>{subtitle}</Text>}
+      <Page nestedScrollEnabled>
+        <ScreenHeader cancel={onCancel} title="Edit job description" subtitle={subtitle || undefined} />
 
-        <Text style={styles.label}>Description</Text>
-        <TextInput
-          value={text} onChangeText={setText} multiline textAlignVertical="top" scrollEnabled
-          placeholder="Paste the job description" placeholderTextColor={colors.textFaint}
-          accessibilityLabel="Description" style={[styles.input, styles.big]}
+        <TextField
+          label="Description" value={text} onChangeText={setText} lines={descLines} scrollEnabled style={{ maxHeight: descHeight - 24 }}
+          placeholder="Paste the job description" error={tooLong ? problem : undefined}
         />
-        <Text accessibilityLiveRegion="polite" style={styles.count}>{formatWords(words)}</Text>
-        {tooLong && <Text accessibilityLiveRegion="polite" style={styles.error}>{problem}</Text>}
-        <View style={styles.pair}>
-          <View style={styles.flex}><Button label="Paste new" variant="secondary" onPress={paste} /></View>
-          <View style={styles.flex}><Button label="Clear" variant="secondary" disabled={text === ''} onPress={() => { setText(''); setStatus(''); }} /></View>
-        </View>
+        <Text accessibilityLiveRegion="polite" style={[type.small, { color: colors.muted, fontVariant: ['tabular-nums'] }]}>{formatWords(words)}</Text>
+        <ActionRow>
+          <Button label="Paste new" variant="secondary" icon="clipboard" onPress={paste} />
+          <Button label="Clear" variant="secondary" disabled={text === ''} onPress={() => { setText(''); setStatus(''); }} />
+        </ActionRow>
 
-        <Text style={styles.label}>Posting link</Text>
-        <TextInput
-          value={link} onChangeText={setLink} placeholder="https://" placeholderTextColor={colors.textFaint}
-          accessibilityLabel="Posting link" maxLength={MAX_LINK_CHARS} autoCapitalize="none" autoCorrect={false} keyboardType="url"
-          style={[styles.input, !!problem && !tooLong && styles.invalid]}
+        <TextField
+          label="Posting link" value={link} onChangeText={setLink} placeholder="https://"
+          maxLength={MAX_LINK_CHARS} autoCapitalize="none" autoCorrect={false} keyboardType="url"
+          error={!!problem && !tooLong ? problem : undefined}
         />
-        {!!problem && !tooLong && <Text accessibilityLiveRegion="polite" style={styles.error}>{problem}</Text>}
 
-        <Text style={styles.help}>Paste the correct description to replace this one, or edit it in place.</Text>
-        {!!status && <Text accessibilityLiveRegion="polite" style={styles.status}>{status}</Text>}
-      </ScrollView>
+        <Text style={[type.small, styles.help]}>Paste the correct description to replace this one, or edit it in place.</Text>
+        {!!status && <Text accessibilityLiveRegion="polite" style={[type.bodyStrong, { color: colors.accent }]}>{status}</Text>}
+      </Page>
 
-      <View style={styles.bar}>
+      <BottomBar>
         <Button label={saving ? 'Saving…' : 'Save description'} disabled={saving || !!problem} onPress={save} />
-      </View>
+      </BottomBar>
     </>
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
-  content: { paddingHorizontal: space.lg, paddingBottom: space.xl, gap: space.sm },
-  cancel: { minHeight: MIN_TOUCH, justifyContent: 'center', alignSelf: 'flex-start' },
-  cancelText: { ...type.section, color: colors.accent },
-  title: { ...type.title, color: colors.text },
-  sub: { ...type.body, color: colors.textMuted, marginBottom: space.sm },
-  muted: { ...type.body, color: colors.textFaint },
-  label: { ...type.section, color: colors.text, marginTop: space.sm },
-  input: {
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surface,
-    padding: space.md, minHeight: MIN_TOUCH, ...type.body, color: colors.text,
-  },
-  big: { height: 360 },
-  invalid: { borderColor: '#B42318' },
-  count: { fontSize: 13, color: colors.textFaint },
-  pair: { flexDirection: 'row', gap: space.sm },
-  flex: { flex: 1, minWidth: 0 },
-  help: { fontSize: 13, color: colors.textFaint, marginTop: space.sm },
-  error: { fontSize: 13, color: '#B42318' },
-  status: { ...type.body, color: colors.accent },
-  bar: { padding: space.lg, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
-});
+const styles = StyleSheet.create({ help: { color: colors.muted } });

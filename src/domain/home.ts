@@ -43,9 +43,19 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 
 /** "Saturday, 31 Oct" */
 export const longDate = (ms: number) => { const d = new Date(ms); return `${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}`; };
+/** "Sat 31 Oct 2026", for the date field. */
+export const fullDate = (value: string) => {
+  const [y, m, d] = value.split('-').map(Number);
+  const dt = new Date(y, (m || 1) - 1, d || 1);
+  return `${DAYS[dt.getDay()].slice(0, 3)} ${dt.getDate()} ${MONTHS[dt.getMonth()]} ${dt.getFullYear()}`;
+};
+const pad2 = (n: number) => String(n).padStart(2, '0');
+/** Stored form formats: "2026-10-31" and "14:30". */
+export const dateText = (ms: number) => { const d = new Date(ms); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+export const timeText = (ms: number) => { const d = new Date(ms); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
 /** "Tue 4 Nov" */
 const dayDate = (ms: number) => { const d = new Date(ms); return `${DAYS[d.getDay()].slice(0, 3)} ${d.getDate()} ${MONTHS[d.getMonth()]}`; };
-const clock = (ms: number) => {
+export const clock = (ms: number) => {
   const d = new Date(ms), h = d.getHours();
   return `${h % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
 };

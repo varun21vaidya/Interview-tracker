@@ -1,13 +1,19 @@
-import { RefreshControl, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Tabs, useRouter } from 'expo-router';
+import { RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { CompanyRow } from '../../src/components/CompanyRow';
+import { IconButton } from '../../src/components/IconButton';
+import { InlineError } from '../../src/components/InlineError';
+import { Screen } from '../../src/components/Screen';
+import { Skeleton } from '../../src/components/Skeleton';
+import { TextField } from '../../src/components/TextField';
 import { useCompanies } from '../../src/hooks/useCompanies';
-import { colors, MIN_TOUCH, radius, space, type } from '../../src/theme/tokens';
+import { useLayout } from '../../src/hooks/useLayout';
+import { colors, radius, space, type } from '../../src/theme/tokens';
 import type { Bundle } from '../../src/types/entities';
 
 export default function Companies() {
   const router = useRouter();
+  const { gutter, contentWidth } = useLayout();
   const openCompany = (companyId: string) => router.push({ pathname: '/company/[id]', params: { id: companyId } });
   const { active, rejected, total, loading, error, query, setQuery, refreshing, refresh, now } = useCompanies();
 
@@ -17,64 +23,68 @@ export default function Companies() {
   ].filter(s => s.data.length > 0);
 
   const header = (
-    <View>
-      <Text accessibilityRole="header" style={styles.title}>Companies</Text>
-      <TextInput
+    <View style={styles.header}>
+      <Text accessibilityRole="header" style={[type.title, { color: colors.text }]}>Companies</Text>
+      <TextField
         value={query}
         onChangeText={setQuery}
         placeholder="Search company, role or recruiter"
-        placeholderTextColor={colors.textFaint}
         accessibilityLabel="Search company, role or recruiter"
+        icon="search"
         autoCapitalize="none"
         autoCorrect={false}
         returnKeyType="search"
-        clearButtonMode="while-editing"
-        style={styles.search}
+        trailing={query ? <IconButton icon="x" label="Clear search" onPress={() => setQuery('')} /> : undefined}
       />
     </View>
   );
 
   // ASSUMPTION: empty and error wording is not in the screenshot.
-  const emptyText = error ? 'Could not load companies.' : loading ? '' : total === 0 ? 'No companies yet.' : 'No companies match your search.';
+  const emptyText = loading ? '' : total === 0 ? 'No companies yet.' : 'No companies match your search.';
+  const empty = error
+    ? <View style={styles.empty}><InlineError message="Could not load companies." onRetry={refresh} /></View>
+    : loading
+      ? <View style={styles.empty}><Skeleton height={72} round={radius.card} /></View>
+      : <View style={[styles.empty, styles.emptyPanel]}><Text style={[type.body, { color: colors.muted }]}>{emptyText}</Text></View>;
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <Tabs.Screen options={{ headerShown: false }} />
+    <Screen edges={['top']}>
       <SectionList<Bundle, { title: string; data: Bundle[] }>
         sections={sections}
         keyExtractor={b => b.company.id}
         ListHeaderComponent={header}
-        ListEmptyComponent={emptyText ? <Text style={styles.empty}>{emptyText}</Text> : undefined}
+        ListEmptyComponent={empty}
         renderSectionHeader={({ section }) => (
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{section.title}</Text>
-            <Text style={styles.sectionCount}>{section.data.length}</Text>
+            <Text accessibilityRole="header" style={[type.section, { color: colors.text }]}>{section.title}</Text>
+            <Text style={[type.small, { color: colors.muted, fontVariant: ['tabular-nums'] }]}>{section.data.length}</Text>
           </View>
         )}
-        renderItem={({ item }) => <CompanyRow bundle={item} now={now} onPress={openCompany} />}
-        ItemSeparatorComponent={() => <View style={{ height: space.md }} />}
+        renderItem={({ item, index, section }) => (
+          <View style={[styles.cell, index === 0 && styles.cellFirst, index === section.data.length - 1 && styles.cellLast]}>
+            {index > 0 && <View style={styles.rule} />}
+            <CompanyRow bundle={item} now={now} onPress={openCompany} />
+          </View>
+        )}
         stickySectionHeadersEnabled={false}
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} colors={[colors.accent]} />}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={{ paddingHorizontal: gutter, paddingBottom: space.xl, width: contentWidth, alignSelf: 'center' }}
       />
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
-  content: { paddingHorizontal: space.lg, paddingBottom: space.xl },
-  title: { ...type.title, color: colors.text, marginTop: space.lg, marginBottom: space.md },
-  search: {
-    minHeight: MIN_TOUCH, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
-    borderRadius: radius.md, paddingHorizontal: space.lg, ...type.body, color: colors.text,
-  },
+  header: { gap: space.md, marginTop: space.lg },
   sectionHeader: {
-    minHeight: MIN_TOUCH, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
-    paddingBottom: space.sm,
+    minHeight: 40, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
+    paddingTop: space.md, paddingBottom: space.sm,
   },
-  sectionTitle: { ...type.section, color: colors.text },
-  sectionCount: { ...type.body, color: colors.textFaint },
-  empty: { ...type.body, color: colors.textMuted, textAlign: 'center', marginTop: space.xl },
+  cell: { backgroundColor: colors.surface, paddingHorizontal: space.lg },
+  cellFirst: { borderTopLeftRadius: radius.card, borderTopRightRadius: radius.card, paddingTop: space.xs },
+  cellLast: { borderBottomLeftRadius: radius.card, borderBottomRightRadius: radius.card, paddingBottom: space.xs },
+  rule: { height: 1, backgroundColor: colors.rule },
+  empty: { marginTop: space.lg },
+  emptyPanel: { backgroundColor: colors.surface, borderRadius: radius.card, padding: space.lg },
 });

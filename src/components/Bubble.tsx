@@ -1,18 +1,18 @@
 import { StyleSheet, Text, View } from 'react-native';
 import type { Bubble as BubbleModel } from '../domain/pings';
-import { radius, space, tones, type } from '../theme/tokens';
+import { radius, tones, type } from '../theme/tokens';
 
 /** Small status pill. Not interactive, so it is exempt from the 48 touch size. */
 export function Bubble({ text, tone }: BubbleModel) {
   const t = tones[tone];
+  const border = 'border' in t ? { borderWidth: 1, borderColor: t.border } : null;
   return (
-    <View style={[styles.pill, { backgroundColor: t.bg }]}>
-      <Text style={[styles.text, { color: t.fg }]}>{text}</Text>
+    <View style={[styles.pill, { backgroundColor: t.bg }, border]}>
+      <Text maxFontSizeMultiplier={1.6} style={[type.bubble, { color: t.fg }]}>{text}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  pill: { alignSelf: 'flex-end', maxWidth: '100%', borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: 3 },
-  text: { ...type.bubble, textAlign: 'center' },
+  pill: { alignSelf: 'flex-start', borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 3 },
 });

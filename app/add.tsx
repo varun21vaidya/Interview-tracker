@@ -1,20 +1,25 @@
 import { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { BottomBar } from '../src/components/BottomBar';
 import { Button } from '../src/components/Button';
 import { Chip } from '../src/components/Chip';
+import { DateField } from '../src/components/DateField';
+import { FieldPair } from '../src/components/FieldPair';
+import { InlineError } from '../src/components/InlineError';
+import { Page } from '../src/components/Page';
+import { Screen } from '../src/components/Screen';
+import { ScreenHeader } from '../src/components/ScreenHeader';
+import { TextField } from '../src/components/TextField';
 import { addRecruiterCall, addRound, deleteRound, loadRoundForEdit, updateRound } from '../src/db/repos/actions';
+import { dateText, timeText } from '../src/domain/home';
 import { parseStart, roundLabel, validateAdd, type AddKind, type FormErrors } from '../src/domain/validation';
-import { colors, MIN_TOUCH, radius, space, type } from '../src/theme/tokens';
+import { colors, space, type } from '../src/theme/tokens';
 
 const KINDS: { kind: AddKind; label: string }[] = [
   { kind: 'walk_in', label: 'Walk-in' }, { kind: 'offline', label: 'Offline' },
   { kind: 'phone', label: 'Phone' }, { kind: 'online', label: 'Online' },
 ];
-const pad = (n: number) => String(n).padStart(2, '0');
-const dateText = (ms: number) => { const d = new Date(ms); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
-const timeText = (ms: number) => { const d = new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 
 /** Add interview (3.4). With ?roundId it edits a manual round instead. */
 export default function AddInterview() {
@@ -86,105 +91,63 @@ export default function AddInterview() {
 
   if (!loaded) {
     return (
-      <SafeAreaView style={styles.screen}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.header}>
-          <Pressable accessibilityRole="button" onPress={() => goBack()} style={styles.cancel}>
-            <Text style={styles.cancelText}>Cancel</Text>
-          </Pressable>
-          {!!failure && <Text style={styles.help}>{failure}</Text>}
-        </View>
-      </SafeAreaView>
+      <Screen>
+        <Page>
+          <ScreenHeader cancel={goBack} title="Edit interview" />
+          {!!failure && <InlineError message={failure} />}
+        </Page>
+      </Screen>
     );
   }
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ headerShown: false }} />
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.header}>
-          <Pressable accessibilityRole="button" onPress={() => goBack()} style={styles.cancel}>
-            <Text style={styles.cancelText}>Cancel</Text>
-          </Pressable>
-          <Text style={styles.title}>{editing ? 'Edit interview' : 'Add interview'}</Text>
-        </View>
-        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-          {!editing && (
-            <View style={styles.chips}>
-              {KINDS.map(k => <Chip key={k.kind} label={k.label} selected={kind === k.kind} onPress={() => setKind(k.kind)} />)}
-              <View style={styles.full}>
-                <Chip label="Recruiter call (no interview yet)" selected={recruiter} onPress={() => setKind('recruiter_call')} />
-              </View>
-            </View>
-          )}
-          <Field label="Company *" value={company} onChangeText={setCompany} placeholder="e.g. Wayne Tech" error={errors.company} />
-          <Field label="Role" value={role} onChangeText={setRole} />
-          {!recruiter && <Field label="Round name" value={label} onChangeText={setLabel} placeholder="e.g. Technical round" />}
-          <View style={styles.pair}>
-            <View style={styles.flex}>
-              <Field label={recruiter ? 'Call date *' : 'Date *'} value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" error={errors.date} keyboardType="numbers-and-punctuation" />
-            </View>
-            <View style={styles.flex}>
-              <Field label="Time" value={time} onChangeText={setTime} placeholder="HH:MM" error={errors.time} keyboardType="numbers-and-punctuation" />
+    <Screen keyboard>
+      <Page>
+        <ScreenHeader cancel={goBack} title={editing ? 'Edit interview' : 'Add interview'} />
+        {!editing && (
+          <View accessibilityRole="radiogroup" style={styles.chips}>
+            {KINDS.map(k => <Chip key={k.kind} radio label={k.label} selected={kind === k.kind} onPress={() => setKind(k.kind)} />)}
+            <View style={styles.full}>
+              <Chip radio label="Recruiter call (no interview yet)" selected={recruiter} onPress={() => setKind('recruiter_call')} />
             </View>
           </View>
-          {!recruiter && <Field label="Address or meeting link" value={where} onChangeText={setWhere} autoCapitalize="none" />}
-          <View style={styles.pair}>
-            <View style={styles.flex}><Field label={recruiter ? 'Recruiter name' : 'Contact name'} value={contactName} onChangeText={setContactName} /></View>
-            <View style={styles.flex}><Field label={recruiter ? 'Recruiter phone' : 'Contact phone'} value={contactPhone} onChangeText={setContactPhone} keyboardType="phone-pad" /></View>
+        )}
+        <TextField label="Company *" value={company} onChangeText={setCompany} placeholder="e.g. Wayne Tech" error={errors.company} />
+        <TextField label="Role" value={role} onChangeText={setRole} />
+        {!recruiter && <TextField label="Round name" value={label} onChangeText={setLabel} placeholder="e.g. Technical round" />}
+        <FieldPair>
+          <DateField label={recruiter ? 'Call date *' : 'Date *'} mode="date" value={date} onChange={setDate} error={errors.date} />
+          <DateField label="Time" mode="time" value={time} onChange={setTime} error={errors.time} optional />
+        </FieldPair>
+        {!recruiter && <TextField label="Address or meeting link" value={where} onChangeText={setWhere} autoCapitalize="none" />}
+        <FieldPair>
+          <TextField label={recruiter ? 'Recruiter name' : 'Contact name'} value={contactName} onChangeText={setContactName} />
+          <TextField label={recruiter ? 'Recruiter phone' : 'Contact phone'} value={contactPhone} onChangeText={setContactPhone} keyboardType="phone-pad" />
+        </FieldPair>
+        <TextField
+          label={recruiter ? 'What did the recruiter say?' : 'Notes'} value={notes} onChangeText={setNotes} lines={4}
+          placeholder={recruiter ? 'e.g. will schedule round 1 this week' : undefined}
+        />
+        {recruiter && (
+          <Text style={[type.small, { color: colors.muted }]}>
+            Shows as Awaiting schedule until a round is added. You can follow up and track pings meanwhile.
+          </Text>
+        )}
+        {editing && (
+          <View style={styles.danger}>
+            <Button label="Delete round" variant="danger" icon="trash-2" onPress={remove} />
           </View>
-          <Field
-            label={recruiter ? 'What did the recruiter say?' : 'Notes'} value={notes} onChangeText={setNotes} multiline
-            placeholder={recruiter ? 'e.g. will schedule round 1 this week' : undefined}
-          />
-          {recruiter && (
-            <Text style={styles.help}>Shows as Awaiting schedule until a round is added. You can follow up and track pings meanwhile.</Text>
-          )}
-          {editing && <Button label="Delete round" variant="secondary" onPress={remove} />}
-        </ScrollView>
-        <View style={styles.footer}>
-          {!!failure && <Text accessibilityLiveRegion="polite" style={styles.error}>{failure}</Text>}
-          <Button label={editing ? 'Save changes' : 'Save'} onPress={save} disabled={saving} />
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
-  );
-}
-
-interface FieldProps extends TextInputProps { label: string; error?: string }
-function Field({ label, error, multiline, style, ...rest }: FieldProps) {
-  return (
-    <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
-      <TextInput
-        accessibilityLabel={label} placeholderTextColor={colors.textFaint} multiline={multiline}
-        style={[styles.input, multiline && styles.multi, !!error && styles.inputError, style]} {...rest}
-      />
-      {!!error && <Text style={styles.error}>{error}</Text>}
-    </View>
+        )}
+      </Page>
+      <BottomBar above={!!failure && <Text accessibilityLiveRegion="polite" style={[type.body, { color: colors.danger }]}>{failure}</Text>}>
+        <Button label={saving ? 'Saving…' : editing ? 'Save changes' : 'Save'} onPress={save} disabled={saving} />
+      </BottomBar>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
-  flex: { flex: 1 },
-  header: { paddingHorizontal: space.lg, paddingTop: space.sm },
-  cancel: { minHeight: MIN_TOUCH, justifyContent: 'center', alignSelf: 'flex-start' },
-  cancelText: { ...type.body, color: colors.accent, fontWeight: '600' },
-  title: { ...type.title, color: colors.text },
-  body: { padding: space.lg, gap: space.md },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   full: { width: '100%' },
-  pair: { flexDirection: 'row', gap: space.md },
-  field: { gap: space.xs },
-  label: { ...type.section, color: colors.text },
-  input: {
-    minHeight: MIN_TOUCH, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
-    paddingHorizontal: space.md, backgroundColor: colors.surface, color: colors.text, fontSize: 15,
-  },
-  multi: { minHeight: 96, paddingTop: space.md, textAlignVertical: 'top' },
-  inputError: { borderColor: '#8A1C1C' },
-  error: { ...type.body, color: '#8A1C1C' },
-  help: { ...type.body, color: colors.textMuted },
-  footer: { padding: space.lg, backgroundColor: colors.bg, borderTopWidth: 1, borderTopColor: colors.border },
+  danger: { marginTop: space.xl },
 });
