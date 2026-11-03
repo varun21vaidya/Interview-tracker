@@ -1,6 +1,6 @@
 import type { CalEvent } from '../types/entities';
 import { safeHttps } from '../utils/links';
-import { extract, stripHtml } from './extract';
+import { extract, isPersonEmail, stripHtml } from './extract';
 
 /** The fields of an expo-calendar event this app reads. Structural, so tests need no native module. */
 export interface RawEvent {
@@ -17,10 +17,13 @@ export function toCalEvent(e: RawEvent, kw: (t: string) => boolean): CalEvent | 
   const text = `${e.title ?? ''} ${e.notes ?? ''}`;
   if (!kw(stripHtml(text))) return null;
   const x = extract(`${text} ${e.location ?? ''}`);
+  // The calendar's organizer, unless it is missing or a system address (a group, a no-reply): then the first person's address in the text.
+  const fromCalendar = e.organizerEmail?.toLowerCase();
+  const organizer = fromCalendar && isPersonEmail(fromCalendar) ? fromCalendar : x.contactEmail ?? fromCalendar;
   return {
     eventId: e.id, calendarId: e.calendarId, title: e.title ?? '',
     startsAt: +new Date(e.startDate), endsAt: +new Date(e.endDate),
-    organizerEmail: e.organizerEmail?.toLowerCase(),
+    organizerEmail: organizer,
     meetingLink: safeHttps(x.link) ?? undefined, phone: x.phone,
   };
 }

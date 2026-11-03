@@ -1,4 +1,4 @@
-import { buildEmail, DEFAULT_SIGNATURE, defaultTemplate, emailContext, roundName, toField } from '../src/domain/email';
+import { buildEmail, DEFAULT_SIGNATURE, defaultTemplate, emailContext, roundName, signatureName, toField } from '../src/domain/email';
 import { mailUri } from '../src/utils/links';
 import type { Bundle } from '../src/types/entities';
 
@@ -15,15 +15,16 @@ const umbrella: Bundle = {
 const target = { type: 'round' as const, id: 'r3', at: at(10, 23) };
 const ctx = emailContext(umbrella, target, DEFAULT_SIGNATURE, 'Raj');
 
-describe('Umbrella Follow up matches the screenshot', () => {
+describe('Umbrella follow up', () => {
   const e = buildEmail('follow_up', ctx);
-  it('subject', () => expect(e.subject).toBe('Following up: SDE II, Technical round'));
+  it('subject', () => expect(e.subject).toBe('Following up: Technical round | SDE II | Umbrella Labs'));
   it('body, paragraph by paragraph', () => {
     expect(e.body.split('\n\n')).toEqual([
-      'Hi Raj,',
-      'Thank you for the Technical round on 23 Oct for the SDE II role at Umbrella Labs. I enjoyed the discussion and remain very interested.',
-      'Could you share an update on the next steps?',
-      'Thanks,\nYour Name\n+91 90000 00000\nlinkedin.com/in/yourname',
+      'Dear Raj,',
+      'I hope you are doing well.',
+      'Thank you for taking the time to speak with me during the Technical round on 23 Oct for the SDE II position at Umbrella Labs. I enjoyed the discussion and remain very enthusiastic about the opportunity.',
+      'I would be grateful if you could share an update on the next steps in the process. Please let me know if you need anything further from my side.',
+      'Best regards,\nYour Name\n+91 90000 00000\nlinkedin.com/in/yourname',
     ]);
   });
 });
@@ -31,16 +32,25 @@ describe('Umbrella Follow up matches the screenshot', () => {
 describe('ASSUMPTION templates', () => {
   it('reschedule', () => {
     const e = buildEmail('reschedule', ctx);
-    expect(e.subject).toBe('Rescheduling: SDE II, Technical round');
-    expect(e.body).toContain('I joined the Technical round on 23 Oct for the SDE II role at Umbrella Labs at the scheduled time, but the interview did not take place.');
-    expect(e.body).toContain('Could you please share a new slot?');
+    expect(e.subject).toBe('Request to reschedule: Technical round | SDE II | Umbrella Labs');
+    expect(e.body).toContain('I joined the Technical round on 23 Oct for the SDE II position at Umbrella Labs at the scheduled time, but unfortunately the interview did not take place.');
+    expect(e.body).toContain('Could we please arrange a new time?');
   });
   it('check fit', () => {
     const c = emailContext({ ...umbrella, rounds: [], calls: [{ id: 'k', companyId: 'c', callAt: at(10, 27) }] }, { type: 'recruiter_call', id: 'k', at: at(10, 27) }, 'Thanks', 'Raj');
     const e = buildEmail('check_fit', c);
-    expect(e.subject).toBe('Following up: SDE II, recruiter call');
+    expect(e.subject).toBe('Following up: recruiter call | SDE II | Umbrella Labs');
     expect(e.body).toContain('whether my profile is a good fit');
     expect(e.body.endsWith('\n\nThanks')).toBe(true);
+  });
+});
+
+describe('subject carries the sender name', () => {
+  it('uses the name from the signature, not the placeholder or the closing', () => {
+    const c = { ...ctx, signature: 'Best regards,'+String.fromCharCode(10)+'Varun Vaidya'+String.fromCharCode(10)+'+91 98765 43210' };
+    expect(buildEmail('follow_up', c).subject).toBe('Following up: Technical round | SDE II | Umbrella Labs | Varun Vaidya');
+    expect(signatureName('Thanks')).toBeUndefined();
+    expect(signatureName(DEFAULT_SIGNATURE)).toBeUndefined();
   });
 });
 
@@ -57,9 +67,9 @@ describe('details', () => {
   });
   it('missing greeting name and role degrade cleanly', () => {
     const e = buildEmail('follow_up', { ...ctx, recruiterFirstName: undefined, role: undefined });
-    expect(e.subject).toBe('Following up: Technical round');
-    expect(e.body.startsWith('Hi there,')).toBe(true);
-    expect(e.body).toContain('Technical round on 23 Oct at Umbrella Labs.');
+    expect(e.subject).toBe('Following up: Technical round | Umbrella Labs');
+    expect(e.body.startsWith('Dear Hiring Team,')).toBe(true);
+    expect(e.body).toContain('Technical round on 23 Oct for a position at Umbrella Labs.');
   });
   it('missing or invalid recruiter email leaves To empty with a note', () => {
     expect(toField('raj@umbrella.example')).toEqual({ to: 'raj@umbrella.example' });

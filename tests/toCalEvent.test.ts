@@ -25,3 +25,16 @@ describe('toCalEvent', () => {
     expect(toCalEvent({ ...base, title: 'Call', notes: 'interview prep' }, kw)).not.toBeNull();
   });
 });
+
+describe('organizer fallback', () => {
+  const base = { id: 'e', calendarId: 'c', title: 'HR round', startDate: '2026-10-23T10:00:00Z', endDate: '2026-10-23T11:00:00Z' };
+  const kw = () => true;
+  it('uses the address in the description when the organizer is a system address', () => {
+    const ev = toCalEvent({ ...base, organizerEmail: 'noreply@calendar.google.com', notes: 'Write to Priya at priya@acme.com' }, kw);
+    expect(ev?.organizerEmail).toBe('priya@acme.com');
+  });
+  it('keeps a real organizer', () => {
+    const ev = toCalEvent({ ...base, organizerEmail: 'Raj@Acme.com', notes: 'cc priya@acme.com' }, kw);
+    expect(ev?.organizerEmail).toBe('raj@acme.com');
+  });
+});

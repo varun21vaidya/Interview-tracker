@@ -72,3 +72,33 @@ describe('keywordMatcher', () => {
     expect(keywordMatcher([])('interview')).toBe(false);
   });
 });
+
+describe('recruiter contact from a signature', () => {
+  const sig = `Hi,
+Your HR round is booked. Join: https://meet.google.com/abc-defg-hij
+Join by phone: PIN: 123 456 789#
+Regards,
+Priya Nair | Talent Acquisition
+Mobile: +91-98765-43210
+priya.nair@acme.com`;
+  it('takes the labelled mobile, not the dial-in PIN', () => {
+    expect(extract(sig).phone).toBe('+91-98765-43210');
+    expect(extract(sig).contactEmail).toBe('priya.nair@acme.com');
+  });
+  it('reads common Indian formats', () => {
+    expect(extract('Ph: 098765 43210').phone).toBe('098765 43210');
+    expect(extract('Call (+91) 98765 43210').phone).toBeTruthy();
+    expect(extract('M 9876543210').phone).toBe('9876543210');
+  });
+  it('ignores dates and times', () => {
+    expect(extract('2026-10-23 10:30 to 11:30').phone).toBeUndefined();
+  });
+  it('decodes HTML and keeps signature lines apart', () => {
+    expect(extract('<p>Regards</p><p>Tel:&nbsp;+91 90000 00000</p>').phone).toBe('+91 90000 00000');
+  });
+  it('skips system addresses and de-duplicates', () => {
+    const x = extract('noreply@calendar.google.com HR@Acme.com hr@acme.com');
+    expect(x.emails).toEqual(['noreply@calendar.google.com', 'HR@Acme.com']);
+    expect(x.contactEmail).toBe('hr@acme.com');
+  });
+});

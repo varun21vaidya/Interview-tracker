@@ -10,8 +10,8 @@ export const TEMPLATES: { id: Template; label: string }[] = [
   { id: 'check_fit', label: 'Check fit' },
 ];
 
-/** Settings default, copied from the screenshot's signature. */
-export const DEFAULT_SIGNATURE = 'Thanks,\nYour Name\n+91 90000 00000\nlinkedin.com/in/yourname';
+/** Settings default signature, closing line included. */
+export const DEFAULT_SIGNATURE = 'Best regards,\nYour Name\n+91 90000 00000\nlinkedin.com/in/yourname';
 
 /** Check fit is the default for recruiter-call-only companies (C2). */
 export const defaultTemplate = (target: Target | null): Template => (target?.type === 'recruiter_call' ? 'check_fit' : 'follow_up');
@@ -38,50 +38,64 @@ export function emailContext(b: Bundle, target: Target | null, signature: string
   };
 }
 
-const greeting = (c: EmailContext) => `Hi ${c.recruiterFirstName ?? 'there'},`;
-const forRole = (c: EmailContext) => (c.role ? `for the ${c.role} role at ${c.company}` : `at ${c.company}`);
+const greeting = (c: EmailContext) => (c.recruiterFirstName ? `Dear ${c.recruiterFirstName},` : 'Dear Hiring Team,');
+const position = (c: EmailContext) => (c.role ? `the ${c.role} position at ${c.company}` : `a position at ${c.company}`);
+const OPENER = 'I hope you are doing well.';
+const CLOSER = 'Please let me know if you need anything further from my side.';
+
+/** The sender's name from the signature: the line after a closing such as "Best regards,". The placeholder is skipped. */
+export function signatureName(signature: string): string | undefined {
+  const lines = signature.split('\n').map(l => l.trim()).filter(Boolean);
+  const name = lines.length > 1 && /[,.]$/.test(lines[0]) ? lines[1] : lines.length === 1 ? undefined : lines[0];
+  return name && name !== 'Your Name' ? name : undefined;
+}
+
+/** Subject with topic, role, company and sender, so the thread is easy to find: "Following up: Technical round | SDE II | Umbrella Labs | Your Name". */
+const subject = (lead: string, topic: string, c: EmailContext) =>
+  [`${lead}: ${topic}`, c.role, c.company, signatureName(c.signature)].filter(Boolean).join(' | ');
 
 export function buildEmail(t: Template, c: EmailContext): { subject: string; body: string } {
-  const role = c.role ? `${c.role}, ` : '';
-  const sig = c.signature;
+    const sig = c.signature;
   switch (t) {
     case 'follow_up': {
-      // Text and subject are the screenshot, character for character. Without a round, falls back to the recruiter call.
+      // Without a round, falls back to the recruiter call.
       const name = c.round ? roundName(c.round.label) : 'recruiter call';
       const at = c.round?.at ?? c.callAt;
       return {
-        subject: `Following up: ${role}${name}`,
+        subject: subject('Following up', name, c),
         body: [
           greeting(c),
-          `Thank you for the ${name}${at !== undefined ? ` on ${shortDate(at)}` : ''} ${forRole(c)}. I enjoyed the discussion and remain very interested.`,
-          'Could you share an update on the next steps?',
+          OPENER,
+          `Thank you for taking the time to speak with me during the ${name}${at !== undefined ? ` on ${shortDate(at)}` : ''} for ${position(c)}. I enjoyed the discussion and remain very enthusiastic about the opportunity.`,
+          `I would be grateful if you could share an update on the next steps in the process. ${CLOSER}`,
           sig,
         ].join('\n\n'),
       };
     }
     case 'reschedule': {
-      // ASSUMPTION: wording drafted from the spec prose (3.6). Subject is also an ASSUMPTION.
       const name = c.round ? roundName(c.round.label) : 'interview';
       const when = c.round ? ` on ${shortDate(c.round.at)}` : '';
       return {
-        subject: `Rescheduling: ${role}${name}`,
+        subject: subject('Request to reschedule', name, c),
         body: [
           greeting(c),
-          `I joined the ${name}${when} ${forRole(c)} at the scheduled time, but the interview did not take place.`,
-          'Could you please share a new slot?',
+          OPENER,
+          `I joined the ${name}${when} for ${position(c)} at the scheduled time, but unfortunately the interview did not take place.`,
+          'Could we please arrange a new time? I am happy to work around your availability and will confirm promptly.',
+          'Thank you for your understanding.',
           sig,
         ].join('\n\n'),
       };
     }
     case 'check_fit': {
-      // ASSUMPTION: wording drafted from the spec prose (3.6). Subject is also an ASSUMPTION.
       const when = c.callAt !== undefined ? ` on ${shortDate(c.callAt)}` : '';
       return {
-        subject: `Following up: ${role}recruiter call`,
+        subject: subject('Following up', 'recruiter call', c),
         body: [
           greeting(c),
-          `Thank you for the call${when} about the ${c.role ? `${c.role} role at ${c.company}` : `opening at ${c.company}`}. You mentioned you would schedule the next step.`,
-          'Could you share an update, and let me know whether my profile is a good fit for the role?',
+          OPENER,
+          `Thank you for speaking with me${when} about ${position(c)}. I appreciated the overview, and you mentioned you would be in touch about the next step.`,
+          'Could you share an update on the process, and let me know whether my profile is a good fit for the role? I would welcome any feedback.',
           sig,
         ].join('\n\n'),
       };
